@@ -1,6 +1,7 @@
 package io.github.xiaoancute.bilisearch
 
 import android.content.SharedPreferences
+import android.util.Log
 
 /**
  * Owns the settings key mapping and serialization. Both the module app and
@@ -40,7 +41,9 @@ internal class SettingsStore(private val prefs: SharedPreferences?) {
             .putString(KEY_BLOCK_WORDS, settings.blockWords.joinToString("\n"))
             .putString(KEY_BLOCK_UPS, settings.blockUps.joinToString("\n"))
             .putString(KEY_WHITELIST, settings.whitelist.joinToString("\n"))
-            .apply()
+
+        val committed = editor.commit()
+        if (!committed) Log.w(LOG_TAG, "settings commit failed")
     }
 
     companion object {

@@ -14,8 +14,8 @@ android {
         applicationId = "io.github.xiaoancute.bilisearch"
         minSdk = 28
         targetSdk = 37
-        versionCode = 18
-        versionName = "0.8.0"
+        versionCode = 19
+        versionName = "0.8.1"
     }
 
     val stableKeystore = System.getenv("KEYSTORE_FILE")

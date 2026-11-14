@@ -30,7 +30,8 @@ SearchAllResponse        SearchByTypeResponse
 
 - 只 hook 两个 getter，不动 UI、不动请求、不发额外网络请求。
 - 综合搜索和分类搜索（视频/用户/直播 Tab）都覆盖。
-- 用 Modern API 102，兼容 LSPosed 和 NPatch。
+- 用 Modern API 102，设置通过 `XposedService.getRemotePreferences` 同步。
+- Hook 状态/搜索统计写入框架远程文件，模块 App 直接读取。
 - 结构参考 [BBZQ](https://github.com/HSSkyBoy/bbzq)，但只保留搜索链路。
 
 ## 当前状态
@@ -49,7 +50,7 @@ SearchAllResponse        SearchByTypeResponse
 | Hook 状态 + 累计/最近搜索统计 | ✅ |
 | 真机回归 | ✅ OnePlus / Android 16 / B站 9.16.1 |
 
-v0.5.3 已在真机验证：OnePlus PLF110 / Android 16 / B站 9.16.1，两个 Hook 都命中，过滤、规则、统计均正常。CI 继续负责编译和单测。
+v0.6.0 已把设置同步切到 LSPosed 官方 `XposedService.getRemotePreferences`，状态改走远程文件，不再依赖 ContentProvider，也不会被 force-stop 卡住。真机验证基线：OnePlus PLF110 / Android 16 / B站 9.16.1。
 
 ## 真机验证
 

@@ -17,21 +17,26 @@ import java.util.Date
 
 class SettingsActivity : AppCompatActivity() {
 
-    private lateinit var prefs: SharedPreferences
+    private lateinit var settingsPrefs: SharedPreferences
     private lateinit var statusText: TextView
     private lateinit var statsText: TextView
     private lateinit var thresholdLabel: TextView
     private lateinit var thresholdSlider: Slider
     private lateinit var presetGroup: MaterialButtonToggleGroup
+    private var remoteAvailable = false
     private var syncingSlider = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val remote = BiliSearchApplication.remotePreferences()
+        remoteAvailable = remote != null
+        settingsPrefs = remote ?: getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+
         setContentView(R.layout.activity_settings)
 
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
-        toolbar.subtitle = "v" + versionName() + " · 只改搜索"
+        toolbar.subtitle = "v" + versionName() + " · " +
+            if (remoteAvailable) "只改搜索" else "框架服务未连接"
 
         statusText = findViewById(R.id.statusText)
         statsText = findViewById(R.id.statsText)
@@ -56,6 +61,15 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (!remoteAvailable) {
+            val remote = BiliSearchApplication.remotePreferences()
+            if (remote != null) {
+                remoteAvailable = true
+                settingsPrefs = remote
+                recreate()
+                return
+            }
+        }
         refreshStatus()
     }
 
@@ -64,7 +78,7 @@ class SettingsActivity : AppCompatActivity() {
         thresholdSlider.valueTo = 100f
         thresholdSlider.stepSize = 5f
 
-        val raw = prefs.getInt(KEY_THRESHOLD, 50).coerceIn(0, 100)
+        val raw = settingsPrefs.getInt(KEY_THRESHOLD, 50).coerceIn(0, 100)
         val threshold = (Math.round(raw / 5f) * 5).coerceIn(0, 100)
         thresholdSlider.value = threshold.toFloat()
         thresholdLabel.text = "相关性阈值：" + threshold + "%"
@@ -75,7 +89,7 @@ class SettingsActivity : AppCompatActivity() {
                 val progress = value.toInt()
                 thresholdLabel.text = "相关性阈值：" + progress + "%"
                 if (fromUser) {
-                    prefs.edit().putInt(KEY_THRESHOLD, progress).apply()
+                    editSettings { it.putInt(KEY_THRESHOLD, progress) }
                     syncingSlider = true
                     presetGroup.check(presetIdFor(progress))
                     syncingSlider = false
@@ -93,7 +107,7 @@ class SettingsActivity : AppCompatActivity() {
                 else -> return@addOnButtonCheckedListener
             }
             thresholdSlider.value = value.toFloat()
-            prefs.edit().putInt(KEY_THRESHOLD, value).apply()
+            editSettings { it.putInt(KEY_THRESHOLD, value) }
         }
     }
 
@@ -103,29 +117,37 @@ class SettingsActivity : AppCompatActivity() {
         val blockUpsInput = findViewById<TextInputEditText>(R.id.blockUpsInput)
         val whitelistInput = findViewById<TextInputEditText>(R.id.whitelistInput)
 
-        minPlayInput.setText(prefs.getInt(KEY_MIN_PLAY, 0).toString())
-        blockWordsInput.setText(prefs.getString(KEY_BLOCK_WORDS, ""))
-        blockUpsInput.setText(prefs.getString(KEY_BLOCK_UPS, ""))
-        whitelistInput.setText(prefs.getString(KEY_WHITELIST, ""))
+        minPlayInput.setText(settingsPrefs.getInt(KEY_MIN_PLAY, 0).toString())
+        blockWordsInput.setText(settingsPrefs.getString(KEY_BLOCK_WORDS, ""))
+        blockUpsInput.setText(settingsPrefs.getString(KEY_BLOCK_UPS, ""))
+        whitelistInput.setText(settingsPrefs.getString(KEY_WHITELIST, ""))
 
         findViewById<MaterialButton>(R.id.saveRulesButton).setOnClickListener {
             val minPlay = minPlayInput.text?.toString()?.toIntOrNull()?.coerceAtLeast(0) ?: 0
-            prefs.edit()
-                .putInt(KEY_MIN_PLAY, minPlay)
-                .putString(KEY_BLOCK_WORDS, blockWordsInput.text?.toString().orEmpty())
-                .putString(KEY_BLOCK_UPS, blockUpsInput.text?.toString().orEmpty())
-                .putString(KEY_WHITELIST, whitelistInput.text?.toString().orEmpty())
-                .apply()
-            Toast.makeText(this, "规则已保存，下一次搜索生效", Toast.LENGTH_SHORT).show()
+            editSettings {
+                it.putInt(KEY_MIN_PLAY, minPlay)
+                it.putString(KEY_BLOCK_WORDS, blockWordsInput.text?.toString().orEmpty())
+                it.putString(KEY_BLOCK_UPS, blockUpsInput.text?.toString().orEmpty())
+                it.putString(KEY_WHITELIST, whitelistInput.text?.toString().orEmpty())
+            }
+            val message = if (remoteAvailable) "规则已保存，下一次搜索生效" else "未连接框架服务，规则可能不生效"
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun bindSwitch(id: Int, key: String, defaultValue: Boolean) {
         val view = findViewById<MaterialSwitch>(id)
-        view.isChecked = prefs.getBoolean(key, defaultValue)
+        view.isChecked = settingsPrefs.getBoolean(key, defaultValue)
         view.setOnCheckedChangeListener { _, checked ->
-            prefs.edit().putBoolean(key, checked).apply()
+            editSettings { it.putBoolean(key, checked) }
         }
+    }
+
+    @Suppress("USELESS_ELVIS")
+    private fun editSettings(block: (SharedPreferences.Editor) -> Unit) {
+        val editor = settingsPrefs.edit() ?: return
+        block(editor)
+        editor.apply()
     }
 
     private fun presetIdFor(threshold: Int): Int = when {
@@ -135,42 +157,45 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun refreshStatus() {
-        val time = prefs.getLong(KEY_STATUS_TIME, 0L)
-        val installed = prefs.getInt(KEY_STATUS_INSTALLED, 0)
-        val process = prefs.getString(KEY_STATUS_PROCESS, null)
-        val version = prefs.getString(KEY_STATUS_VERSION, null)
+        val json = StatusReader.read(this)
+        val hook = json?.optJSONObject("hook")
+        val search = json?.optJSONObject("search")
 
-        val searchTime = prefs.getLong(KEY_STATUS_SEARCH_TIME, 0L)
+        val hookTime = hook?.optLong("time", 0L) ?: 0L
+        val installed = hook?.optInt("installed", 0) ?: 0
+        val process = hook?.optString("process", null)
+        val version = hook?.optString("version", null)
 
-        val hookText = if (time == 0L) {
-            if (searchTime > 0L) {
-                "Hook 已运行：最近一次搜索已上报，安装状态未回传。"
-            } else {
-                "尚未收到 Hook 上报。确认模块已启用、作用域已勾选 B 站，并重启 B 站。"
+        val searchTime = search?.optLong("time", 0L) ?: 0L
+        val keyword = search?.optString("keyword", "") ?: ""
+        val kept = search?.optInt("kept", 0) ?: 0
+        val total = search?.optInt("total", 0) ?: 0
+        val removed = search?.optInt("removed", 0) ?: 0
+
+        val hookText = when {
+            hookTime > 0L -> {
+                val whenText = DateFormat.format("yyyy-MM-dd HH:mm:ss", Date(hookTime))
+                "Hook 已上报：" + whenText +
+                    "\n安装 " + installed + " 个 Hook，进程 " + (process ?: "未知") +
+                    "，模块 " + (version ?: "未知")
             }
-        } else {
-            val whenText = DateFormat.format("yyyy-MM-dd HH:mm:ss", Date(time))
-            "Hook 已上报：" + whenText +
-                "\n安装 " + installed + " 个 Hook，进程 " + (process ?: "未知") +
-                "，模块 " + (version ?: "未知")
+            searchTime > 0L -> "Hook 已运行：最近一次搜索已上报，安装状态未回传。"
+            else -> "尚未收到 Hook 上报。确认模块已启用、作用域已勾选 B 站，并重启 B 站。"
         }
-
-        val totalSearches = prefs.getInt(KEY_TOTAL_SEARCHES, 0)
-        val totalRemoved = prefs.getInt(KEY_TOTAL_REMOVED, 0)
-        val searchKeyword = prefs.getString(KEY_STATUS_SEARCH_KEYWORD, null)
-        val kept = prefs.getInt(KEY_STATUS_SEARCH_KEPT, 0)
-        val total = prefs.getInt(KEY_STATUS_SEARCH_TOTAL, 0)
-        val removed = prefs.getInt(KEY_STATUS_SEARCH_REMOVED, 0)
 
         val recentText = if (searchTime == 0L) {
             "还没有搜索记录。"
         } else {
             val whenText = DateFormat.format("MM-dd HH:mm:ss", Date(searchTime))
-            "最近：\"" + (searchKeyword ?: "") + "\" 保留 " + kept + "/" + total +
+            "最近：\"" + keyword + "\" 保留 " + kept + "/" + total +
                 "，删除 " + removed + "（" + whenText + "）"
         }
 
-        statusText.text = hookText
+        val totalSearches = json?.optInt("total_searches", 0) ?: 0
+        val totalRemoved = json?.optInt("total_removed", 0) ?: 0
+        val warning = if (remoteAvailable) "" else "\n框架服务未连接，设置只能保存在本地。"
+
+        statusText.text = hookText + warning
         statsText.text = "累计：搜索 " + totalSearches + " 次，删除 " + totalRemoved + " 条\n" + recentText
     }
 

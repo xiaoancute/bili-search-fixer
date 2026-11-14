@@ -176,7 +176,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:minHeight="48dp"
-                        android:text="隐藏推荐词 / 提示卡" />
+                        android:text="隐藏推荐词卡片" />
 
                     <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/dedupeSwitch"

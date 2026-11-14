@@ -4,6 +4,7 @@ import android.util.Log
 import io.github.libxposed.api.XposedInterface
 import io.github.xiaoancute.bilisearch.LOG_TAG
 import io.github.xiaoancute.bilisearch.SettingsRepository
+import io.github.xiaoancute.bilisearch.StatusWriter
 import io.github.xiaoancute.bilisearch.filter.SearchFilter
 import io.github.xiaoancute.bilisearch.filter.SearchItem
 import io.github.xiaoancute.bilisearch.filter.SearchResultPolicy
@@ -18,7 +19,8 @@ import io.github.xiaoancute.bilisearch.filter.SearchText
 internal class SearchResultHook(
     private val xposed: XposedInterface,
     private val classLoader: ClassLoader,
-    private val settings: SettingsRepository
+    private val settings: SettingsRepository,
+    private val status: StatusWriter
 ) {
 
     private val policy = SearchResultPolicy()
@@ -145,7 +147,7 @@ internal class SearchResultHook(
             }
         }
 
-        settings.reportSearchAsync(keyword, slots.size, items.size, removedCount)
+        status.search(keyword, slots.size, items.size, removedCount)
 
         if (removedCount == 0 && !current.rerank) return items
 

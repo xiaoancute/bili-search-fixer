@@ -49,7 +49,8 @@ B 站 9.0+ 的 App 搜索走 Moss gRPC，JSON 接口是网页/旧版本的路径
 | `Application.attach / attachBaseContext` | 拿真实 ClassLoader | B 站有 Tribe 插件化 |
 | `SearchAllResponse.getItemList` | 综合搜索 | 返回过滤后的 List |
 | `SearchByTypeResponse.getItemsList` | 分类搜索 | 视频/用户/直播 Tab |
-| `SettingsProvider` (ContentProvider) | 开关/阈值/状态回报 | 模块 App 写，B 站进程读；2s 缓存 |
+| `XposedService.getRemotePreferences` | 开关/阈值 | 模块 App 写，B 站进程读；框架托管 |
+| `XposedModule.openRemoteFile` | Hook/搜索统计 | B 站进程写 JSON，模块 App 读 |
 
 ## 相关性算法
 
@@ -137,11 +138,10 @@ key = 归一化标题 + `|` + 归一化作者。只去完全相同的标题 + �
 
 ## 设置与状态
 
-- 模块 App 的 `SettingsActivity` 写 `SharedPreferences`。
-- B 站进程通过导出的 `SettingsProvider` 读取开关、阈值、屏蔽词、屏蔽 UP、白名单、最低播放量等，2 秒缓存。
-- Hook 安装时异步 preload；读取失败重试 3 次（150ms 间隔），避免首次搜索读到默认值。
-- Hook 安装后通过同一个 provider 回传「安装数 / 时间 / 进程 / 模块版本」。
-- 每次搜索回传「关键词 / 保留 / 总数 / 删除」，设置页显示累计和最近一次搜索。
+- 模块 App 在 `Application.onCreate` 注册 `XposedServiceHelper.OnServiceListener`，拿到 `XposedService` 后通过 `getRemotePreferences(SETTINGS_PREFS)` 读写设置。
+- B 站进程通过 `XposedModule.getRemotePreferences(SETTINGS_PREFS)` 直接读取同一组设置，不再经过 ContentProvider，也不受模块 App 被 force-stop 影响。
+- Hook 状态和搜索统计由 B 站进程写入 `openRemoteFile(STATUS_FILE)`，模块 App 通过 `XposedService.openRemoteFile` 或私有目录读取。
+- 状态文件包含：安装数/时间/进程/模块版本、最近搜索、累计搜索/删除数。
 - 设置页使用 Material 3 + XML：MaterialToolbar、MaterialCardView、MaterialSwitch、Slider、MaterialButtonToggleGroup、TextInputLayout。
 
 ## 隐私

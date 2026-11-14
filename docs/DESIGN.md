@@ -2,7 +2,7 @@
 
 ## 目标
 
-在不修改 B 站 APK、不依赖其混淆类名的前提下，提高 Android 客户端搜索结果的相关性。
+在官方 B 站 App 内提高搜索结果的相关性，只改搜索内容，不碰首页、播放页、动态和账号行为。
 
 非目标：
 
@@ -13,37 +13,40 @@
 ## 原则
 
 1. **空结果优于垃圾结果**：相关度不够就删，不拿推荐位凑数。
-2. **只读响应**：v1 不发起任何额外请求，零风控风险。
-3. **版本无关**：不写死 `data.item`，递归识别「长得像搜索卡片」的数组。
+2. **只读响应**：不发起额外请求，零风控风险。
+3. **版本无关**：不依赖混淆类名，只依赖 protobuf 生成类。
 4. **可回放**：每条被删内容输出 title / 分数 / 原因，方便调阈值。
 
 ## 数据流
 
 ```
-BiliBili App
-  └─ OkHttpClient.newCall(Request)
-       └─ [Hook] after: 记录 / 包装 Call
-            └─ Response
-                 ├─ URL 不命中 -> 原样返回
-                 └─ URL 命中 /x/v2/search*
-                      ├─ body -> String
-                      ├─ SearchJsonRewriter.rewrite()
-                      │    ├─ 递归遍历 JSON
-                      │    ├─ 识别 item 数组
-                      │    ├─ SearchFilter.evaluate()
-                      │    └─ 删除 / 保留
-                      └─ ResponseBody.create() 重建 Response
+BiliBili 9.0+
+  └─ Moss gRPC
+       ├─ SearchAllResponse.getItemList()
+       └─ SearchByTypeResponse.getItemsList()
+            └─ [Hook] 拿到 List<Item> + response.getKeyword()
+                 ├─ CM / PURCHASE -> 删
+                 ├─ AV -> 读 SearchVideoCard 的 title/author/desc/play
+                 │        └─ SearchFilter.evaluate()
+                 └─ 其他 -> 保留
+            └─ 返回新 List
 ```
+
+### 为什么不用 OkHttp JSON
+
+B 站 9.0+ 的 App 搜索走 Moss gRPC，JSON 接口是网页/旧版本的路径。BBZQ 的实现已经证明正确的 hook 点是：
+
+- `com.bapis.bilibili.polymer.app.search.v1.SearchAllResponse#getItemList`
+- `com.bapis.bilibili.polymer.app.search.v1.SearchByTypeResponse#getItemsList`
 
 ## Hook 点
 
 | 点 | 作用 | 备注 |
 |---|---|---|
-| `Application.attach / attachBaseContext` | 拿真实 ClassLoader | B 站有 Tribe 插件化，`lpparam.classLoader` 未必够 |
-| `okhttp3.OkHttpClient.newCall` | 拿到所有请求 | 用 `afterHookedMethod` 只读，不改变返回值（M1） |
-| `okhttp3.ResponseBody.create` | 重建响应体 | M2 通过反射调用 |
-| `okhttp3.Response.Builder.body` | 替换 body | M2 |
-| DexKit | 定位被混淆的 okhttp/模型类 | M2 引入，结果按 versionCode 缓存 |
+| `Application.attach / attachBaseContext` | 拿真实 ClassLoader | B 站有 Tribe 插件化 |
+| `SearchAllResponse.getItemList` | 综合搜索 | 返回过滤后的 List |
+| `SearchByTypeResponse.getItemsList` | 分类搜索 | 视频/用户/直播 Tab |
+| Modern API `getRemotePreferences` | 开关/阈值 | 默认开启，0.5 阈值 |
 
 ## 相关性算法
 
@@ -52,6 +55,7 @@ BiliBili App
 - NFKC（全角转半角）
 - 小写
 - 去掉空白、标点、符号
+- 去掉标题里的 `<em class="keyword">` 高亮标签，但保留高亮次数
 
 ### 查询展开
 
@@ -66,30 +70,24 @@ BiliBili App
 | 标题高亮 `<em>` | 0.95 | B 站自己标了命中 |
 | 标题包含完整查询 | 1.00 | 最强信号 |
 | 标题 bigram 覆盖率 | 0-1.0 | 主信号 |
-| tag 覆盖率 × 0.8 | 0-0.8 | 辅助 |
+| tag/简介覆盖率 × 0.8 | 0-0.8 | 辅助 |
 | 简介覆盖率 × 0.5 | 0-0.5 | 只蹭简介的降权 |
 | 广告卡 | 0 | 直接删 |
 
-默认阈值 0.5。低于阈值删除。UP 主名不参与打分。
-
-### 为什么不用分词库
-
-- 搜索词通常 2-10 个字，bigram 足够。
-- 避免把 jieba 之类的词典打进模块，减少体积和冲突。
-- 纯 Kotlin，JVM 单测可覆盖。
+默认阈值 0.5。低于阈值删除。UP 主名不参与自动打分。
 
 ## 规则语法（移植自社区方案）
 
-Kirosca 的油猴脚本验证了这套语法：
+```
+摄影 -入门 #ai @影视飓风
+```
 
 | 语法 | 含义 | 行为 |
 |---|---|---|
 | `词` | 必含 | 严格模式下标题必须包含全部普通词 |
 | `-词` | 排除 | 标题包含即删 |
-| `#词` | 标签 | 标签必须包含全部 |
+| `#词` | 标签 | 标签/简介必须包含 |
 | `@词` | UP 主 | 作者匹配任一 |
-
-示例：`摄影 -入门 #ai @影视飓风`
 
 ### 混合语义
 
@@ -97,51 +95,26 @@ Kirosca 的油猴脚本验证了这套语法：
 - **出现任一修饰词**：进入严格模式，普通词必须全部出现在标题；再叠加 `- # @` 硬规则。
 - **只有修饰词**：跳过自动打分，只执行规则。
 
-这样普通用户不需要学语法，高级用户又能精确控制。
+### App 端字段限制
 
-### 请求改写
+protobuf 的 `SearchVideoCard` 只有 title / author / desc / play / duration / mid，没有 tag 和 pubdate。因此：
 
-社区脚本会从发给 B 站的 `keyword` 里删掉 `-排除词`。官方 App 的搜索请求带 `appkey`/WBI 签名，直接改 `keyword` 可能触发 412。M2.5 先实测；能重新签名再上，不能就让规则从模块设置页读取。
+- `#标签` 在 App 上回退为「标题或简介包含」。
+- 暂不能按发布时间本地排序。
+- 播放量存在，M5 可做「相关性 > 播放量」重排。
 
-## JSON 形态
+## 广告卡
 
-三种已知响应：
-
-1. `data.item[]` — APP 综合搜索
-2. `data.result[]` — APP 分类搜索
-3. `data.result[{result_type, data[]}]` — Web all/v2
-
-识别规则：数组里存在元素同时具备 `title` 和 `bvid/param/goto/linktype` 之一，即视为结果数组。其余数组递归下钻。
-
-不改 `numResults/numPages`，避免分页状态错乱；UI 显示的总数可能偏大，可接受。
-
-## 本地重排（M3）
-
-服务端顺序被个性化污染，仅过滤不够。保留项按以下 key 排序：
-
-1. 相关性分数降序
-2. 播放量降序（字段存在时）
-3. 原始 position（稳定排序）
-
-风险：B 站可能用 `position` 而非数组顺序渲染。M3 先做灰度开关，实测后再默认开启。
-
-## 分页补偿（M5）
-
-删完后本页可能只剩几条。用同一个 OkHttpClient 重放请求（`pn+1`），过滤后合并：
-
-- 仅当保留数 < 5 且未到末页时触发
-- 串行、限 1 页、请求间隔 ≥ 1s
-- trackid 不匹配则放弃合并
-
-## 兼容性
-
-- 只在 `tv.danmaku.bili` 主进程加载；`:web`、`:download` 跳过。
-- 只处理 HTTP 200、JSON、body < 1MB。
-- 如果搜索改走 gRPC/protobuf，JSON 钩子自然失效（不会崩）；M6 增加 protobuf 分支。
-- 重建响应时删除 `Content-Length` / `Content-Encoding`，防止解析器读到旧长度。
+`Item.card_item` 的 oneof 里 `cm`（SearchAdCard）和 `purchase`（商品卡）直接删除；`goto == "ad"` 也删。其他类型（用户、直播、番剧、专栏）保留，避免破坏搜索页结构。
 
 ## 隐私
 
 - 不上传任何数据。
 - 不读取账号 Cookie。
-- 日志只在本机 logcat，包含搜索词和被删标题（用于调试），release 可关闭。
+- 日志只在本机 logcat，包含搜索词和被删标题（用于调试）。
+
+## 版本适配
+
+- B 站 9.0+（BBZQ 的适配基线）。
+- Modern API 102，最低 Android 9（API 28）。
+- 只加载 `tv.danmaku.bili` 主进程。

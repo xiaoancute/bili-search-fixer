@@ -1,59 +1,70 @@
 # BiliSearch Fixer
 
-> LSPosed 模块：把 B 站客户端搜索结果里「和关键词毫无关系」的内容删掉。
+> LSPosed 模块：只改 B 站客户端的搜索内容——删掉和关键词毫无关系的视频、广告卡和买量卡。
 
 ![build](https://github.com/xiaoancute/bili-search-fixer/actions/workflows/build.yml/badge.svg)
 
 ## 问题
 
-B 站搜索的相关性已经烂到众所周知。搜索结果里混着广告卡、买量视频、个性化推荐、以及和关键词 100% 零关联的内容；时间排序甚至会把更新的视频排到后面。游客/无痕模式连排序和筛选入口都不给。
+B 站搜索的相关性已经烂到众所周知：结果里混着广告卡、买量视频、个性化推荐，以及和关键词 100% 零关联的内容；时间排序甚至会把更新的视频排到后面。游客/无痕模式连排序和筛选入口都没有。
 
-详见 [docs/RESEARCH.md](docs/RESEARCH.md)，里面摘了 NGA、V2EX 上 2021-2026 年的吐槽原帖。
+吐槽原帖和社区方案整理在 [docs/RESEARCH.md](docs/RESEARCH.md)，覆盖 NGA、V2EX 2021-2026 的讨论。
 
 ## 方案
 
-不去逆向搜索 UI，而是在 **OkHttp 响应层**做 JSON 重写：
+B 站 9.0+ 的 App 搜索已经不走 HTTP JSON，而是 Moss gRPC protobuf：
 
 ```
-搜索请求 -> OkHttpClient.newCall() [Hook]
-          -> 响应 URL 命中 /x/v2/search
-          -> 读取 body，递归找出结果数组
-          -> 按关键词做文本相关性打分，删掉 0 关联项和广告
-          -> 重建 ResponseBody，B 站解析器无感知
+SearchAllResponse        SearchByTypeResponse
+  getItemList()            getItemsList()
+        \                      /
+         \                    /
+          [Hook] 返回过滤后的 List<Item>
+                    |
+                    ├─ CM / PURCHASE 卡：直接删
+                    ├─ AV 卡：标题/作者/简介做相关性 + 规则
+                    └─ 其他类型：保留
 ```
 
-这样做的好处：不依赖混淆类名、不改 RecyclerView、覆盖综合/分类/翻页所有入口。
+关键点：
+
+- 只 hook 两个 getter，不动 UI、不动请求、不发额外网络请求。
+- 综合搜索和分类搜索（视频/用户/直播 Tab）都覆盖。
+- 用 Modern API 102，兼容 LSPosed 和 NPatch。
+- 结构参考 [BBZQ](https://github.com/HSSkyBoy/bbzq)，但只保留搜索链路。
 
 ## 当前状态
 
 | 能力 | 状态 |
 |---|---|
-| Xposed 入口 + 进程过滤 | ✅ |
-| OkHttp newCall Hook + 搜索 URL 识别 | ✅ |
-| 关键词归一化 / 中文 bigram / 相关性打分 | ✅ 有单测 |
-| 规则语法 `-排除` / `#标签` / `@UP` | ✅ 有单测 |
-| 搜索 JSON 递归重写器 | ✅ 有单测（待接线） |
-| 响应体替换（真正删结果） | ⏳ M2 |
-| 设置页 / 白名单 / 本地重排 | ⏳ M3+ |
+| Modern API 102 入口 + 进程过滤 | ✅ |
+| `SearchAllResponse.getItemList` Hook | ✅ 代码完成，待真机验证 |
+| `SearchByTypeResponse.getItemsList` Hook | ✅ 代码完成，待真机验证 |
+| 广告卡/买量卡删除 | ✅ |
+| 标题 bigram 相关性 + `- # @` 规则 | ✅ 有单测 |
+| 设置页 | ⏳ |
+| 真机回归 | ⏳ 需要 Android 设备 |
 
-v0.2.0 是「能装、能打日志、算法可验证」的地基，不会改搜索结果。
+v0.3.0 已把架构从 OkHttp JSON 迁到 gRPC protobuf，但还没有在真机上跑过；CI 只保证编译和单测。
 
 ## 构建（只用 GitHub Actions）
 
-本仓库**不在本地编译**。推送到 `main` 后 Action 会自动跑单测并产出 APK。
+本仓库**不在本地编译**。推送后 Action 会：
+
+1. 安装 JDK 21、Android SDK 37、Gradle 9.7.1
+2. 跑单测
+3. 产出 debug APK
+4. 上传 artifact
 
 ```bash
-# 下载最近一次构建产物
 gh run list --workflow build.yml --limit 1
 gh run download --name BiliSearchFixer-debug
 ```
 
-产物：`app-debug.apk`（debug 签名，LSPosed 不校验签名）。
-
 ## 安装
 
-1. 手机安装 LSPosed（Zygisk）。
-2. 安装 APK，在 LSPosed 里启用模块。
+1. 手机安装支持 Modern API 102 的 LSPosed（或 NPatch）。
+2. 安装 APK，在框架里启用模块。
 3. 作用域勾选「哔哩哔哩」(`tv.danmaku.bili`)。
 4. 强制停止并重启 B 站。
 5. 看日志：
@@ -62,30 +73,60 @@ gh run download --name BiliSearchFixer-debug
 adb logcat | grep BiliSearchFixer
 ```
 
+正常会看到：
+
+```
+hooked com.bapis.bilibili.polymer.app.search.v1.SearchAllResponse.getItemList
+search="原神攻略" kept=12/20 removed=8 ...
+```
+
+## 规则语法
+
+搜索词里可以直接带：
+
+```
+关键词 -排除词 #标签 @UP主
+
+摄影 -入门 #ai @影视飓风
+```
+
+| 语法 | 行为 |
+|---|---|
+| `词` | 必含 |
+| `-词` | 标题包含即删 |
+| `#词` | 标签必须包含；App 响应没有 tag，回退到简介 |
+| `@词` | 作者匹配任一 |
+
+无修饰词时只跑自动相关性；出现任一修饰词时进入严格模式，普通词必须全部出现在标题。
+
+## 已知限制
+
+- gRPC 搜索卡片没有 tag 字段，`#` 规则只能回退到简介匹配。
+- gRPC 搜索卡片没有 pubdate，暂时不能做本地时间排序。
+- 搜索词仍会原样发给 B 站，`-排除词` 只能本地过滤，不能改变服务端召回。请求改写要处理签名，放在后面验证。
+- 适配 B 站 9.0+；更老的版本可能仍走 JSON，当前不覆盖。
+
 ## 路线图
 
-- [x] M1 工程骨架 + CI + Hook 打点
-- [x] M1.5 规则语法 `-排除 #标签 @UP`（移植自社区脚本）
-- [ ] M2 响应体替换，真正删除 0 关联项和广告卡
-- [ ] M2.5 规则接入设置页；请求改写需先验证签名
-- [ ] M3 本地重排（相关性 > 播放量），对抗个性化排序
-- [ ] M4 设置页：强度、关键词/UP 白名单、关键词排除
-- [ ] M5 分页补偿 + 标题去重（搬运/切片）
-- [ ] M6 gRPC/protobuf 搜索链路兜底
+- [x] M1 工程骨架 + CI
+- [x] M1.5 规则语法 `-排除 #标签 @UP`
+- [x] M2 迁移 Modern API + gRPC 搜索 Hook
+- [ ] M3 真机验证 + 字段名/时序修正
+- [ ] M4 设置页（开关、阈值、规则）
+- [ ] M5 本地重排（相关性 + 播放量）
+- [ ] M6 请求改写（先验证签名）
 
 ## 参考
 
-- [BiliRoamingX](https://github.com/zjns/BiliRoamingX) — Tribe ClassLoader、DexKit、OkHttp/ProtoBuf 改写思路（GPL-3.0，仅参考，不复制代码）
-- [DexKit](https://github.com/LuckyPray/DexKit) — 运行时定位混淆类
+- [BBZQ](https://github.com/HSSkyBoy/bbzq) — Modern API、Moss Hook、搜索卡片结构的直接参考
+- [BiliRoamingX](https://github.com/zjns/BiliRoamingX) — Tribe ClassLoader / DexKit 思路
 - [bilibili-cleaner](https://github.com/festoney8/bilibili-cleaner) — 网页端过滤规则模型
-- [bilibili-API-collect](https://github.com/SocialSisterYi/bilibili-API-collect) — 搜索接口字段
-- [B站去掉搜索无关视频](https://www.bilibili.com/opus/1231629834092806164) — 社区网页脚本 + PiliPlus 定制版，`- # @` 语法来源
-- [ScriptCat 脚本](https://scriptcat.org/zh-CN/script-show-page/7723) — 网络层删广告 + DOM 四道闸
-- [PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus) — GPL-3.0 第三方客户端
+- [bilibili-API-collect](https://github.com/SocialSisterYi/bilibili-API-collect) — protobuf 字段
+- [B站去掉搜索无关视频](https://www.bilibili.com/opus/1231629834092806164) — `- # @` 语法来源
 
 ## 免责声明
 
-仅供个人学习与本地使用。模块只读取响应，不向任何第三方服务器发送数据，不修改账号状态。与哔哩哔哩官方无关。
+仅供个人学习与本地使用。模块只读取搜索响应，不向任何第三方服务器发送数据，不修改账号状态。与哔哩哔哩官方无关。
 
 ## License
 

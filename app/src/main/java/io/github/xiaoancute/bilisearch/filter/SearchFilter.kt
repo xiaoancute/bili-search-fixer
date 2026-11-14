@@ -14,7 +14,11 @@ class SearchFilter(
         if (dropAds && item.isAd()) return Decision(false, 0.0, "ad")
 
         val title = QueryTokenizer.normalize(item.title)
-        val tag = QueryTokenizer.normalize(item.tag.orEmpty())
+        // The gRPC search card has no tag field. Fall back to the description
+        // so that "#word" rules remain usable on the app.
+        val tag = QueryTokenizer.normalize(
+            if (item.tag.isNullOrBlank()) item.description.orEmpty() else item.tag
+        )
         val author = QueryTokenizer.normalize(item.author.orEmpty())
 
         rule.excludedTitleTerms.firstOrNull { title.contains(it) }?.let {

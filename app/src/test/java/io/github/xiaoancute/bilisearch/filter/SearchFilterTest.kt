@@ -80,4 +80,11 @@ class SearchFilterTest {
         assertTrue(decision.keep)
         assertEquals("rules_only", decision.reason)
     }
+    @Test
+    fun tagRuleFallsBackToDescriptionWhenTagsAreMissing() {
+        val item = SearchItem(title = "原神攻略", description = "这期聊聊原神")
+
+        assertTrue(filter.evaluate("原神攻略 #原神", item).keep)
+        assertFalse(filter.evaluate("原神攻略 #崩坏", item).keep)
+    }
 }

@@ -1,5 +1,2 @@
-# Xposed entry points must never be renamed or removed.
--keep class io.github.xiaoancute.bilisearch.XposedInit { *; }
--keepclassmembers class * {
-    @de.robv.android.xposed.* <methods>;
-}
+# The framework instantiates this class by name.
+-keep class io.github.xiaoancute.bilisearch.BiliSearchModule { *; }

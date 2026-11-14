@@ -27,7 +27,7 @@ class BiliSearchModule : XposedModule() {
             log(Log.WARN, LOG_TAG, "remote preferences unavailable; using defaults")
         }
 
-        val settings = SettingsRepository(prefs)
+        val settings = SettingsStore(prefs)
         val reporter = StatusReporter()
 
         val installed = runCatching {

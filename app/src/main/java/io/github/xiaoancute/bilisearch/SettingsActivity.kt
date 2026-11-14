@@ -1,7 +1,6 @@
 package io.github.xiaoancute.bilisearch
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
@@ -26,8 +25,9 @@ import java.util.Date
 
 class SettingsActivity : AppCompatActivity() {
 
-    private lateinit var settingsPrefs: SharedPreferences
-    private lateinit var statusPrefs: SharedPreferences
+    private lateinit var settingsStore: SettingsStore
+    private lateinit var statusStore: StatusStore
+    private lateinit var settings: Settings
     private lateinit var toolbar: MaterialToolbar
     private lateinit var scrollView: NestedScrollView
     private lateinit var filterContent: View
@@ -54,8 +54,9 @@ class SettingsActivity : AppCompatActivity() {
 
         val remote = BiliSearchApplication.remotePreferences()
         remoteAvailable = remote != null
-        settingsPrefs = remote ?: getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
-        statusPrefs = getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE)
+        settingsStore = SettingsStore(remote ?: getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE))
+        statusStore = StatusStore(getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE))
+        settings = settingsStore.read()
 
         setContentView(R.layout.activity_settings)
         applyInsets()
@@ -77,12 +78,12 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.syncWarning).visibility =
             if (remoteAvailable) View.GONE else View.VISIBLE
 
-        bindSwitch(R.id.enableSwitch, KEY_ENABLED, true)
-        bindSwitch(R.id.dropAdsSwitch, KEY_DROP_ADS, true)
-        bindSwitch(R.id.videoOnlySwitch, KEY_VIDEO_ONLY, false)
-        bindSwitch(R.id.hideRecommendSwitch, KEY_HIDE_RECOMMEND, false)
-        bindSwitch(R.id.dedupeSwitch, KEY_DEDUPE, false)
-        bindSwitch(R.id.rerankSwitch, KEY_RERANK, false)
+        bindSwitch(R.id.enableSwitch, { it.enabled }, { s, v -> s.copy(enabled = v) })
+        bindSwitch(R.id.dropAdsSwitch, { it.dropAds }, { s, v -> s.copy(dropAds = v) })
+        bindSwitch(R.id.videoOnlySwitch, { it.videoOnly }, { s, v -> s.copy(videoOnly = v) })
+        bindSwitch(R.id.hideRecommendSwitch, { it.hideRecommend }, { s, v -> s.copy(hideRecommend = v) })
+        bindSwitch(R.id.dedupeSwitch, { it.dedupe }, { s, v -> s.copy(dedupe = v) })
+        bindSwitch(R.id.rerankSwitch, { it.rerank }, { s, v -> s.copy(rerank = v) })
 
         setupThreshold()
         setupRules()
@@ -143,7 +144,7 @@ class SettingsActivity : AppCompatActivity() {
             val remote = BiliSearchApplication.remotePreferences()
             if (remote != null) {
                 remoteAvailable = true
-                settingsPrefs = remote
+                settingsStore = SettingsStore(remote)
                 recreate()
                 return
             }
@@ -153,7 +154,7 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        if (remoteAvailable) saveRules(showError = false)
+        saveRules(showError = false)
     }
 
     private fun applyInsets() {
@@ -199,8 +200,7 @@ class SettingsActivity : AppCompatActivity() {
         thresholdSlider.valueTo = 100f
         thresholdSlider.stepSize = 5f
 
-        val raw = settingsPrefs.getInt(KEY_THRESHOLD, 50).coerceIn(0, 100)
-        val threshold = (Math.round(raw / 5f) * 5).coerceIn(0, 100)
+        val threshold = (Math.round(settings.threshold.coerceIn(0, 100) / 5f) * 5).coerceIn(0, 100)
         thresholdSlider.value = threshold.toFloat()
         thresholdLabel.text = "相关性阈值：" + threshold + "%"
         updateThresholdA11y(threshold)
@@ -212,7 +212,7 @@ class SettingsActivity : AppCompatActivity() {
                 thresholdLabel.text = "相关性阈值：" + progress + "%"
                 updateThresholdA11y(progress)
                 if (fromUser) {
-                    editSettings { it.putInt(KEY_THRESHOLD, progress) }
+                    updateSettings { it.copy(threshold = progress) }
                     syncingSlider = true
                     presetGroup.check(presetIdFor(progress))
                     syncingSlider = false
@@ -230,7 +230,7 @@ class SettingsActivity : AppCompatActivity() {
                 else -> return@addOnButtonCheckedListener
             }
             thresholdSlider.value = value.toFloat()
-            editSettings { it.putInt(KEY_THRESHOLD, value) }
+            updateSettings { it.copy(threshold = value) }
         }
     }
 
@@ -247,10 +247,10 @@ class SettingsActivity : AppCompatActivity() {
         val blockUpsInput = findViewById<TextInputEditText>(R.id.blockUpsInput)
         val whitelistInput = findViewById<TextInputEditText>(R.id.whitelistInput)
 
-        minPlayInput.setText(settingsPrefs.getInt(KEY_MIN_PLAY, 0).toString())
-        blockWordsInput.setText(settingsPrefs.getString(KEY_BLOCK_WORDS, ""))
-        blockUpsInput.setText(settingsPrefs.getString(KEY_BLOCK_UPS, ""))
-        whitelistInput.setText(settingsPrefs.getString(KEY_WHITELIST, ""))
+        minPlayInput.setText(settings.minPlay.toString())
+        blockWordsInput.setText(settings.blockWords.joinToString("\n"))
+        blockUpsInput.setText(settings.blockUps.joinToString("\n"))
+        whitelistInput.setText(settings.whitelist.joinToString("\n"))
 
         listOf(minPlayInput, blockWordsInput, blockUpsInput, whitelistInput).forEach { input ->
             input.setOnFocusChangeListener { _, hasFocus ->
@@ -260,7 +260,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun saveRules(showError: Boolean) {
-        if (!::settingsPrefs.isInitialized || !remoteAvailable) return
+        if (!::settingsStore.isInitialized || !remoteAvailable) return
 
         val minPlayLayout = findViewById<TextInputLayout>(R.id.minPlayLayout)
         val raw = findViewById<TextInputEditText>(R.id.minPlayInput)
@@ -278,35 +278,37 @@ class SettingsActivity : AppCompatActivity() {
             minPlayLayout.error = null
         }
 
-        val blockWords = findViewById<TextInputEditText>(R.id.blockWordsInput)
-            .text?.toString().orEmpty()
-        val blockUps = findViewById<TextInputEditText>(R.id.blockUpsInput)
-            .text?.toString().orEmpty()
-        val whitelist = findViewById<TextInputEditText>(R.id.whitelistInput)
-            .text?.toString().orEmpty()
-
-        editSettings {
-            if (minPlay != null) it.putInt(KEY_MIN_PLAY, minPlay)
-            it.putString(KEY_BLOCK_WORDS, blockWords)
-            it.putString(KEY_BLOCK_UPS, blockUps)
-            it.putString(KEY_WHITELIST, whitelist)
-        }
+        val next = settings.copy(
+            minPlay = minPlay ?: settings.minPlay,
+            blockWords = SettingsStore.parseList(
+                findViewById<TextInputEditText>(R.id.blockWordsInput).text?.toString().orEmpty()
+            ),
+            blockUps = SettingsStore.parseList(
+                findViewById<TextInputEditText>(R.id.blockUpsInput).text?.toString().orEmpty()
+            ),
+            whitelist = SettingsStore.parseList(
+                findViewById<TextInputEditText>(R.id.whitelistInput).text?.toString().orEmpty()
+            )
+        )
+        updateSettings { next }
     }
 
-    private fun bindSwitch(id: Int, key: String, defaultValue: Boolean) {
+    private fun bindSwitch(
+        id: Int,
+        read: (Settings) -> Boolean,
+        update: (Settings, Boolean) -> Settings
+    ) {
         val view = findViewById<MaterialSwitch>(id)
-        view.isChecked = settingsPrefs.getBoolean(key, defaultValue)
+        view.isChecked = read(settings)
         view.setOnCheckedChangeListener { _, checked ->
-            editSettings { it.putBoolean(key, checked) }
+            updateSettings { update(it, checked) }
         }
     }
 
-    @Suppress("USELESS_ELVIS")
-    private fun editSettings(block: (SharedPreferences.Editor) -> Unit) {
+    private fun updateSettings(transform: (Settings) -> Settings) {
         if (!remoteAvailable) return
-        val editor = settingsPrefs.edit() ?: return
-        block(editor)
-        editor.apply()
+        settings = transform(settings)
+        settingsStore.write(settings)
     }
 
     private fun presetIdFor(threshold: Int): Int = when {
@@ -316,42 +318,35 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun refreshStatus() {
-        val hookTime = statusPrefs.getLong(KEY_STATUS_TIME, 0L)
-        val installed = statusPrefs.getInt(KEY_STATUS_INSTALLED, 0)
-        val searchTime = statusPrefs.getLong(KEY_STATUS_SEARCH_TIME, 0L)
-        val keyword = statusPrefs.getString(KEY_STATUS_SEARCH_KEYWORD, "") ?: ""
-        val kept = statusPrefs.getInt(KEY_STATUS_SEARCH_KEPT, 0)
-        val total = statusPrefs.getInt(KEY_STATUS_SEARCH_TOTAL, 0)
-        val removed = statusPrefs.getInt(KEY_STATUS_SEARCH_REMOVED, 0)
-        val totalSearches = statusPrefs.getInt(KEY_TOTAL_SEARCHES, 0)
-        val totalRemoved = statusPrefs.getInt(KEY_TOTAL_REMOVED, 0)
+        val status = statusStore.read()
 
         val title = when {
-            hookTime > 0L || searchTime > 0L -> "搜索过滤已生效"
+            status.hasHook || status.hasSearch -> "搜索过滤已生效"
             remoteAvailable -> "已连接，等待第一次搜索"
             else -> "未连接 LSPosed，设置不会同步"
         }
 
         val detail = when {
-            hookTime > 0L -> {
-                val whenText = DateFormat.format("MM-dd HH:mm", Date(hookTime))
-                "上次上报 " + whenText + " · 安装 " + installed + " 个 Hook"
+            status.hasHook -> {
+                val whenText = DateFormat.format("MM-dd HH:mm", Date(status.hookTime))
+                "上次上报 " + whenText + " · 安装 " + status.installed + " 个 Hook"
             }
-            searchTime > 0L -> "最近一次搜索已上报"
+            status.hasSearch -> "最近一次搜索已上报"
             remoteAvailable -> "打开 B 站搜索一次即可确认"
             else -> "在 LSPosed 中启用模块并勾选 B 站"
         }
 
-        val recentText = if (searchTime == 0L) {
+        val recentText = if (!status.hasSearch) {
             "还没有搜索记录。"
         } else {
-            val whenText = DateFormat.format("MM-dd HH:mm", Date(searchTime))
-            "最近：" + keyword + " · 保留 " + kept + "/" + total +
-                " · 删除 " + removed + "（" + whenText + "）"
+            val whenText = DateFormat.format("MM-dd HH:mm", Date(status.searchTime))
+            "最近：" + status.keyword + " · 保留 " + status.kept + "/" + status.total +
+                " · 删除 " + status.removed + "（" + whenText + "）"
         }
 
         statusText.text = title + "\n" + detail
-        statsText.text = "累计：搜索 " + totalSearches + " 次，删除 " + totalRemoved + " 条\n" + recentText
+        statsText.text = "累计：搜索 " + status.totalSearches + " 次，删除 " +
+            status.totalRemoved + " 条\n" + recentText
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

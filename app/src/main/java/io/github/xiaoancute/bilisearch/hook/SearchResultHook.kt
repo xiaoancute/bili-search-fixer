@@ -3,7 +3,7 @@ package io.github.xiaoancute.bilisearch.hook
 import android.util.Log
 import io.github.libxposed.api.XposedInterface
 import io.github.xiaoancute.bilisearch.LOG_TAG
-import io.github.xiaoancute.bilisearch.SettingsRepository
+import io.github.xiaoancute.bilisearch.SettingsStore
 import io.github.xiaoancute.bilisearch.StatusReporter
 import io.github.xiaoancute.bilisearch.filter.SearchFilter
 import io.github.xiaoancute.bilisearch.filter.SearchItem
@@ -19,7 +19,7 @@ import io.github.xiaoancute.bilisearch.filter.SearchText
 internal class SearchResultHook(
     private val xposed: XposedInterface,
     private val classLoader: ClassLoader,
-    private val settings: SettingsRepository,
+    private val settings: SettingsStore,
     private val status: StatusReporter
 ) {
 
@@ -61,7 +61,7 @@ internal class SearchResultHook(
     }
 
     private fun filter(response: Any, items: List<*>): List<*> {
-        val current = settings.current()
+        val current = settings.read()
         if (!current.enabled) return items
 
         val keyword = response.stringMethod("getKeyword")?.trim().orEmpty()

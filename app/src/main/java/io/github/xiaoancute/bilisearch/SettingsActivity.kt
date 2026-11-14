@@ -143,7 +143,13 @@ class SettingsActivity : Activity() {
         val process = prefs.getString(KEY_STATUS_PROCESS, null)
         val version = prefs.getString(KEY_STATUS_VERSION, null)
 
-        statusLabel.text = if (time == 0L) {
+        val searchTime = prefs.getLong(KEY_STATUS_SEARCH_TIME, 0L)
+        val searchKeyword = prefs.getString(KEY_STATUS_SEARCH_KEYWORD, null)
+        val kept = prefs.getInt(KEY_STATUS_SEARCH_KEPT, 0)
+        val total = prefs.getInt(KEY_STATUS_SEARCH_TOTAL, 0)
+        val removed = prefs.getInt(KEY_STATUS_SEARCH_REMOVED, 0)
+
+        val hookText = if (time == 0L) {
             "尚未收到 Hook 上报。确认模块已启用、作用域已勾选 B 站，并重启 B 站。"
         } else {
             val whenText = DateFormat.format("yyyy-MM-dd HH:mm:ss", Date(time))
@@ -151,6 +157,17 @@ class SettingsActivity : Activity() {
                 "\n安装 " + installed + " 个 Hook，进程 " + (process ?: "未知") +
                 "，模块 " + (version ?: "未知")
         }
+
+        val searchText = if (searchTime == 0L) {
+            "尚未记录到搜索过滤。重启 B 站后搜索一次。"
+        } else {
+            val whenText = DateFormat.format("yyyy-MM-dd HH:mm:ss", Date(searchTime))
+            "最近搜索：\"" + (searchKeyword ?: "") + "\"" +
+                "\n保留 " + kept + "/" + total + "，删除 " + removed +
+                "（" + whenText + "）"
+        }
+
+        statusLabel.text = hookText + "\n\n" + searchText
     }
 
     private fun text(value: String, size: Float, color: Int, bold: Boolean): TextView =

@@ -70,9 +70,7 @@ class BiliSearchModule : XposedModule() {
         }.getOrDefault(0)
 
         log(Log.INFO, LOG_TAG, "search hooks installed: " + installed)
-        Thread {
-            settings.reportStatus(installed, processName, moduleVersion(application))
-        }.apply { isDaemon = true }.start()
+        settings.reportStatusAsync(installed, processName, moduleVersion(application))
 
         if (installed == 0) started.set(false)
     }

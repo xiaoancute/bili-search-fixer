@@ -43,7 +43,7 @@ SearchAllResponse        SearchByTypeResponse
 | 广告卡/买量卡删除 | ✅ |
 | 标题 bigram 相关性 + `- # @` 规则 | ✅ 有单测 |
 | 设置页（开关/阈值/规则说明） | ✅ |
-| Hook 状态回报 | ✅ 设置页可看安装数/时间/进程 |
+| Hook 状态回报 | ✅ 安装数/时间/进程 + 最近搜索保留/删除统计 |
 | 真机回归 | ⏳ 需要 Android 设备 |
 
 v0.4.0 是第一个「能打开、能改设置、能看到 Hook 是否上报」的测试版。架构已从 OkHttp JSON 迁到 gRPC protobuf，但过滤是否命中仍需真机确认；CI 只保证编译和单测。
@@ -69,7 +69,7 @@ gh run download --name BiliSearchFixer-debug
 3. 在框架里启用模块。
 4. 作用域勾选「哔哩哔哩」(`tv.danmaku.bili`)。
 5. 强制停止并重启 B 站，搜索一次。
-6. 回到模块设置页点「刷新 Hook 状态」，应显示「安装 2 个 Hook」。
+6. 回到模块设置页点「刷新 Hook 状态」，应显示「安装 2 个 Hook」；搜索后还会显示最近一次搜索保留/删除了多少条。
 
 也可以看日志：
 

@@ -120,6 +120,8 @@ internal class SearchResultHook(
             }
         }
 
+        settings.reportSearchAsync(keyword, kept.size, items.size, removedCount)
+
         if (removedCount == 0) return items
 
         xposed.log(

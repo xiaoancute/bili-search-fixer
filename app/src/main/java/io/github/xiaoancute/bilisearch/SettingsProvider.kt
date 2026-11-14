@@ -36,6 +36,17 @@ class SettingsProvider : ContentProvider() {
                 Bundle().apply { putBoolean("ok", true) }
             }
 
+            "search" -> {
+                prefs.edit()
+                    .putLong(KEY_STATUS_SEARCH_TIME, System.currentTimeMillis())
+                    .putString(KEY_STATUS_SEARCH_KEYWORD, extras?.getString("keyword"))
+                    .putInt(KEY_STATUS_SEARCH_KEPT, extras?.getInt("kept", 0) ?: 0)
+                    .putInt(KEY_STATUS_SEARCH_TOTAL, extras?.getInt("total", 0) ?: 0)
+                    .putInt(KEY_STATUS_SEARCH_REMOVED, extras?.getInt("removed", 0) ?: 0)
+                    .apply()
+                Bundle().apply { putBoolean("ok", true) }
+            }
+
             else -> Bundle()
         }
     }

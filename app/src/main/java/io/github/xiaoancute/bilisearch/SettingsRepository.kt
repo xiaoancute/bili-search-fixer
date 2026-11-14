@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
+import java.util.concurrent.Executors
 
 /**
  * Runs inside the Bilibili process. Settings live in the module app and are
@@ -13,6 +14,10 @@ import android.os.SystemClock
 internal class SettingsRepository(private val context: Context) {
 
     private val uri = Uri.parse("content://" + SETTINGS_AUTHORITY)
+    private val executor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "BiliSearchStatus").apply { isDaemon = true }
+    }
+
     @Volatile
     private var cached = Settings()
 
@@ -37,14 +42,30 @@ internal class SettingsRepository(private val context: Context) {
         )
     }.getOrDefault(Settings())
 
-    fun reportStatus(installed: Int, process: String, version: String) {
-        runCatching {
-            val extras = Bundle().apply {
-                putInt("installed", installed)
-                putString("process", process)
-                putString("version", version)
+    fun reportStatusAsync(installed: Int, process: String, version: String) {
+        executor.execute {
+            runCatching {
+                val extras = Bundle().apply {
+                    putInt("installed", installed)
+                    putString("process", process)
+                    putString("version", version)
+                }
+                context.contentResolver.call(uri, "status", null, extras)
             }
-            context.contentResolver.call(uri, "status", null, extras)
+        }
+    }
+
+    fun reportSearchAsync(keyword: String, kept: Int, total: Int, removed: Int) {
+        executor.execute {
+            runCatching {
+                val extras = Bundle().apply {
+                    putString("keyword", keyword)
+                    putInt("kept", kept)
+                    putInt("total", total)
+                    putInt("removed", removed)
+                }
+                context.contentResolver.call(uri, "search", null, extras)
+            }
         }
     }
 

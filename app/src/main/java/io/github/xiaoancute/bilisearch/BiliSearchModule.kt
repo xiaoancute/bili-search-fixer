@@ -1,5 +1,6 @@
 package io.github.xiaoancute.bilisearch
 
+import android.app.Application
 import android.util.Log
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam
@@ -28,14 +29,25 @@ class BiliSearchModule : XposedModule() {
         }
 
         val settings = SettingsRepository(prefs)
-        val status = StatusWriter(this)
+        val reporter = currentApplication()?.let { StatusReporter(it) }
+        if (reporter == null) {
+            log(Log.WARN, LOG_TAG, "application context unavailable; status disabled")
+        }
+
         val installed = runCatching {
-            SearchResultHook(this, param.classLoader, settings, status).install()
+            SearchResultHook(this, param.classLoader, settings, reporter).install()
         }.onFailure {
             log(Log.ERROR, LOG_TAG, "search hook installation failed", it)
         }.getOrDefault(0)
 
-        status.hook(installed, processName, MODULE_VERSION)
+        reporter?.hook(installed, processName, MODULE_VERSION)
         log(Log.INFO, LOG_TAG, "search hooks installed: " + installed)
     }
+
+    private fun currentApplication(): Application? = runCatching {
+        Class.forName("android.app.ActivityThread")
+            .getDeclaredMethod("currentApplication")
+            .apply { isAccessible = true }
+            .invoke(null) as? Application
+    }.getOrNull()
 }

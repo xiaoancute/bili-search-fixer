@@ -18,6 +18,7 @@ import java.util.Date
 class SettingsActivity : AppCompatActivity() {
 
     private lateinit var settingsPrefs: SharedPreferences
+    private lateinit var statusPrefs: SharedPreferences
     private lateinit var statusText: TextView
     private lateinit var statsText: TextView
     private lateinit var thresholdLabel: TextView
@@ -31,6 +32,7 @@ class SettingsActivity : AppCompatActivity() {
         val remote = BiliSearchApplication.remotePreferences()
         remoteAvailable = remote != null
         settingsPrefs = remote ?: getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+        statusPrefs = getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE)
 
         setContentView(R.layout.activity_settings)
 
@@ -157,20 +159,16 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun refreshStatus() {
-        val json = StatusReader.read(this)
-        val hook = json?.optJSONObject("hook")
-        val search = json?.optJSONObject("search")
+        val hookTime = statusPrefs.getLong(KEY_STATUS_TIME, 0L)
+        val installed = statusPrefs.getInt(KEY_STATUS_INSTALLED, 0)
+        val process = statusPrefs.getString(KEY_STATUS_PROCESS, null)
+        val version = statusPrefs.getString(KEY_STATUS_VERSION, null)
 
-        val hookTime = hook?.optLong("time", 0L) ?: 0L
-        val installed = hook?.optInt("installed", 0) ?: 0
-        val process = hook?.optString("process", null)
-        val version = hook?.optString("version", null)
-
-        val searchTime = search?.optLong("time", 0L) ?: 0L
-        val keyword = search?.optString("keyword", "") ?: ""
-        val kept = search?.optInt("kept", 0) ?: 0
-        val total = search?.optInt("total", 0) ?: 0
-        val removed = search?.optInt("removed", 0) ?: 0
+        val searchTime = statusPrefs.getLong(KEY_STATUS_SEARCH_TIME, 0L)
+        val keyword = statusPrefs.getString(KEY_STATUS_SEARCH_KEYWORD, "") ?: ""
+        val kept = statusPrefs.getInt(KEY_STATUS_SEARCH_KEPT, 0)
+        val total = statusPrefs.getInt(KEY_STATUS_SEARCH_TOTAL, 0)
+        val removed = statusPrefs.getInt(KEY_STATUS_SEARCH_REMOVED, 0)
 
         val hookText = when {
             hookTime > 0L -> {
@@ -191,8 +189,8 @@ class SettingsActivity : AppCompatActivity() {
                 "，删除 " + removed + "（" + whenText + "）"
         }
 
-        val totalSearches = json?.optInt("total_searches", 0) ?: 0
-        val totalRemoved = json?.optInt("total_removed", 0) ?: 0
+        val totalSearches = statusPrefs.getInt(KEY_TOTAL_SEARCHES, 0)
+        val totalRemoved = statusPrefs.getInt(KEY_TOTAL_REMOVED, 0)
         val warning = if (remoteAvailable) "" else "\n框架服务未连接，设置只能保存在本地。"
 
         statusText.text = hookText + warning

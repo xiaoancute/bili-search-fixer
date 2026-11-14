@@ -19,6 +19,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".StatusReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="io.github.xiaoancute.bilisearch.STATUS" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

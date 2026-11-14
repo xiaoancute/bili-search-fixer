@@ -4,6 +4,7 @@ data class SearchItem(
     val title: String,
     val tag: String? = null,
     val description: String? = null,
+    val author: String? = null,
     val bvid: String? = null,
     val goto: String? = null,
     val cardType: String? = null,

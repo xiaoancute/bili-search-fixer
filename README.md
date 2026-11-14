@@ -31,11 +31,12 @@ B 站搜索的相关性已经烂到众所周知。搜索结果里混着广告卡
 | Xposed 入口 + 进程过滤 | ✅ |
 | OkHttp newCall Hook + 搜索 URL 识别 | ✅ |
 | 关键词归一化 / 中文 bigram / 相关性打分 | ✅ 有单测 |
+| 规则语法 `-排除` / `#标签` / `@UP` | ✅ 有单测 |
 | 搜索 JSON 递归重写器 | ✅ 有单测（待接线） |
 | 响应体替换（真正删结果） | ⏳ M2 |
 | 设置页 / 白名单 / 本地重排 | ⏳ M3+ |
 
-v0.1.0 是「能装、能打日志、算法可验证」的地基，不会改搜索结果。
+v0.2.0 是「能装、能打日志、算法可验证」的地基，不会改搜索结果。
 
 ## 构建（只用 GitHub Actions）
 
@@ -64,7 +65,9 @@ adb logcat | grep BiliSearchFixer
 ## 路线图
 
 - [x] M1 工程骨架 + CI + Hook 打点
+- [x] M1.5 规则语法 `-排除 #标签 @UP`（移植自社区脚本）
 - [ ] M2 响应体替换，真正删除 0 关联项和广告卡
+- [ ] M2.5 规则接入设置页；请求改写需先验证签名
 - [ ] M3 本地重排（相关性 > 播放量），对抗个性化排序
 - [ ] M4 设置页：强度、关键词/UP 白名单、关键词排除
 - [ ] M5 分页补偿 + 标题去重（搬运/切片）
@@ -76,6 +79,9 @@ adb logcat | grep BiliSearchFixer
 - [DexKit](https://github.com/LuckyPray/DexKit) — 运行时定位混淆类
 - [bilibili-cleaner](https://github.com/festoney8/bilibili-cleaner) — 网页端过滤规则模型
 - [bilibili-API-collect](https://github.com/SocialSisterYi/bilibili-API-collect) — 搜索接口字段
+- [B站去掉搜索无关视频](https://www.bilibili.com/opus/1231629834092806164) — 社区网页脚本 + PiliPlus 定制版，`- # @` 语法来源
+- [ScriptCat 脚本](https://scriptcat.org/zh-CN/script-show-page/7723) — 网络层删广告 + DOM 四道闸
+- [PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus) — GPL-3.0 第三方客户端
 
 ## 免责声明
 

@@ -2,6 +2,7 @@ package io.github.xiaoancute.bilisearch.json
 
 import io.github.xiaoancute.bilisearch.filter.SearchFilter
 import io.github.xiaoancute.bilisearch.filter.SearchItem
+import io.github.xiaoancute.bilisearch.filter.SearchRule
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -13,11 +14,13 @@ import org.json.JSONObject
 object SearchJsonRewriter {
 
     private val EM_TAG = Regex("</?em[^>]*>", RegexOption.IGNORE_CASE)
+    private val AUTHOR_KEYS = arrayOf("author", "up_name", "uname")
 
     fun rewrite(query: String, rawJson: String, filter: SearchFilter): Result {
         val root = JSONObject(rawJson)
         val stats = Stats()
-        val rewritten = rewriteValue(root, query, filter, stats) as JSONObject
+        val rule = filter.parse(query)
+        val rewritten = rewriteValue(root, rule, filter, stats) as JSONObject
         return Result(
             json = if (stats.removed == 0) rawJson else rewritten.toString(),
             kept = stats.kept,
@@ -26,15 +29,20 @@ object SearchJsonRewriter {
         )
     }
 
-    private fun rewriteValue(value: Any?, query: String, filter: SearchFilter, stats: Stats): Any? {
+    private fun rewriteValue(
+        value: Any?,
+        rule: SearchRule,
+        filter: SearchFilter,
+        stats: Stats
+    ): Any? {
         return when (value) {
-            is JSONArray -> rewriteArray(value, query, filter, stats)
+            is JSONArray -> rewriteArray(value, rule, filter, stats)
             is JSONObject -> {
                 val out = JSONObject()
                 val keys = value.keys()
                 while (keys.hasNext()) {
                     val key = keys.next()
-                    out.put(key, rewriteValue(value.opt(key), query, filter, stats))
+                    out.put(key, rewriteValue(value.opt(key), rule, filter, stats))
                 }
                 out
             }
@@ -44,7 +52,7 @@ object SearchJsonRewriter {
 
     private fun rewriteArray(
         array: JSONArray,
-        query: String,
+        rule: SearchRule,
         filter: SearchFilter,
         stats: Stats
     ): JSONArray {
@@ -59,7 +67,7 @@ object SearchJsonRewriter {
             val element = array.opt(index)
             if (isItemArray && element is JSONObject) {
                 val item = toSearchItem(element)
-                val decision = filter.evaluate(query, item)
+                val decision = filter.evaluate(rule, item)
                 if (decision.keep) {
                     stats.kept++
                     out.put(element)
@@ -70,7 +78,7 @@ object SearchJsonRewriter {
                     }
                 }
             } else {
-                out.put(rewriteValue(element, query, filter, stats))
+                out.put(rewriteValue(element, rule, filter, stats))
             }
         }
         return out
@@ -80,8 +88,9 @@ object SearchJsonRewriter {
         val rawTitle = obj.optString("title", "")
         return SearchItem(
             title = EM_TAG.replace(rawTitle, ""),
-            tag = obj.optString("tag", "").ifEmpty { null },
+            tag = readTag(obj),
             description = obj.optString("description", "").ifEmpty { null },
+            author = readAuthor(obj),
             bvid = obj.optString("bvid", "").ifEmpty { null },
             goto = obj.optString("goto", "").ifEmpty { null },
             cardType = obj.optString("card_type", "").ifEmpty { null },
@@ -90,6 +99,27 @@ object SearchJsonRewriter {
             pubdate = obj.optLong("pubdate", -1L).takeIf { it >= 0 },
             highlightCount = EM_TAG.findAll(rawTitle).count()
         )
+    }
+
+    private fun readTag(obj: JSONObject): String? {
+        val tag = obj.optString("tag", "")
+        if (tag.isNotEmpty()) return tag
+
+        val tags = obj.optJSONArray("tags") ?: return null
+        val values = ArrayList<String>(tags.length())
+        for (index in 0 until tags.length()) {
+            val value = tags.optString(index, "")
+            if (value.isNotEmpty()) values += value
+        }
+        return values.joinToString(",").ifEmpty { null }
+    }
+
+    private fun readAuthor(obj: JSONObject): String? {
+        for (key in AUTHOR_KEYS) {
+            val value = obj.optString(key, "")
+            if (value.isNotEmpty()) return value
+        }
+        return null
     }
 
     data class Result(

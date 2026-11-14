@@ -30,17 +30,24 @@ internal class SettingsRepository(private val context: Context) {
     @Volatile
     private var lastSearchAt = 0L
 
+    fun preload() {
+        executor.execute { current() }
+    }
+
     fun current(): Settings {
         val now = SystemClock.elapsedRealtime()
         if (now - cachedAt < CACHE_MS) return cached
-        cached = read()
-        cachedAt = now
+        val fresh = read()
+        if (fresh != null) {
+            cached = fresh
+            cachedAt = now
+        }
         return cached
     }
 
-    private fun read(): Settings = runCatching {
+    private fun read(): Settings? = runCatching {
         val bundle = context.contentResolver.call(uri, "get", null, null)
-            ?: return Settings()
+            ?: return null
         Settings(
             enabled = bundle.getBoolean(KEY_ENABLED, true),
             threshold = bundle.getInt(KEY_THRESHOLD, 50),
@@ -54,7 +61,7 @@ internal class SettingsRepository(private val context: Context) {
             blockUps = splitList(bundle.getString(KEY_BLOCK_UPS)),
             whitelist = splitList(bundle.getString(KEY_WHITELIST))
         )
-    }.getOrDefault(Settings())
+    }.getOrNull()
 
     private fun splitList(raw: String?): List<String> =
         raw.orEmpty()

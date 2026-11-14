@@ -44,4 +44,9 @@ class RelevanceScorerTest {
         assertEquals(0.0, score.value, 0.001)
         assertEquals("ad", score.reason)
     }
+    @Test
+    fun latinPartialTitleIsPenalized() {
+        val score = scorer.score("bad apple", SearchItem(title = "Bad Dongxi!! feat.帽子工厂"))
+        assertEquals(0.3, score.value, 0.001)
+    }
 }

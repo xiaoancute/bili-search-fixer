@@ -63,6 +63,7 @@ class BiliSearchModule : XposedModule() {
         if (!started.compareAndSet(false, true)) return
 
         val settings = SettingsRepository(application)
+        settings.preload()
         val installed = runCatching {
             SearchResultHook(this, classLoader, settings).install()
         }.onFailure {

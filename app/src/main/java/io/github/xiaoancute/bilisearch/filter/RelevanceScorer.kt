@@ -25,7 +25,15 @@ class RelevanceScorer {
         val tagHits = tokens.count { tag.contains(it) }
         val descriptionHits = tokens.count { description.contains(it) }
 
-        val titleScore = titleHits.toDouble() / tokens.size
+        val latinOnly = tokens.all { token ->
+            token.all { it in 'a'..'z' || it in '0'..'9' }
+        }
+        val rawTitleScore = titleHits.toDouble() / tokens.size
+        val titleScore = if (latinOnly && titleHits < tokens.size) {
+            rawTitleScore * 0.6
+        } else {
+            rawTitleScore
+        }
         val tagScore = tagHits.toDouble() / tokens.size * 0.8
         val descriptionScore = descriptionHits.toDouble() / tokens.size * 0.5
 

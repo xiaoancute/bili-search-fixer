@@ -14,12 +14,32 @@ android {
         applicationId = "io.github.xiaoancute.bilisearch"
         minSdk = 28
         targetSdk = 37
-        versionCode = 5
-        versionName = "0.5.0"
+        versionCode = 6
+        versionName = "0.5.1"
+    }
+
+    val stableKeystore = System.getenv("KEYSTORE_FILE")
+        ?.takeIf { it.isNotBlank() }
+        ?.let { file(it) }
+
+    signingConfigs {
+        if (stableKeystore != null) {
+            create("stable") {
+                storeFile = stableKeystore
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+                storeType = "PKCS12"
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfigs.findByName("stable")?.let { signingConfig = it }
+        }
         release {
+            signingConfigs.findByName("stable")?.let { signingConfig = it }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

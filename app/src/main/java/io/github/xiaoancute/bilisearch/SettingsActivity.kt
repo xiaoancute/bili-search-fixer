@@ -13,7 +13,9 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.widget.NestedScrollView
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -26,6 +28,11 @@ class SettingsActivity : AppCompatActivity() {
 
     private lateinit var settingsPrefs: SharedPreferences
     private lateinit var statusPrefs: SharedPreferences
+    private lateinit var toolbar: MaterialToolbar
+    private lateinit var scrollView: NestedScrollView
+    private lateinit var filterContent: View
+    private lateinit var rulesContent: View
+    private lateinit var statusContent: View
     private lateinit var statusText: TextView
     private lateinit var statsText: TextView
     private lateinit var thresholdLabel: TextView
@@ -46,9 +53,12 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(R.layout.activity_settings)
         applyInsets()
 
-        val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
-        toolbar.subtitle = "v" + versionName() + " · " +
-            if (remoteAvailable) "只改搜索" else "未连接框架"
+        toolbar = findViewById(R.id.toolbar)
+        scrollView = findViewById(R.id.scroll)
+        filterContent = findViewById(R.id.filterTabContent)
+        rulesContent = findViewById(R.id.rulesTabContent)
+        statusContent = findViewById(R.id.statusTabContent)
+        toolbar.subtitle = "BiliSearch Fixer · v" + versionName()
 
         statusText = findViewById(R.id.statusText)
         statsText = findViewById(R.id.statsText)
@@ -76,6 +86,35 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.refreshButton).setOnClickListener {
             refreshStatus()
         }
+
+        setupTabs()
+    }
+
+    private fun setupTabs() {
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNav)
+        bottomNav.setOnItemSelectedListener { item ->
+            showTab(item.itemId)
+            true
+        }
+        bottomNav.selectedItemId = R.id.tabFilter
+        showTab(R.id.tabFilter)
+    }
+
+    private fun showTab(tabId: Int) {
+        filterContent.visibility = if (tabId == R.id.tabFilter) View.VISIBLE else View.GONE
+        rulesContent.visibility = if (tabId == R.id.tabRules) View.VISIBLE else View.GONE
+        statusContent.visibility = if (tabId == R.id.tabStatus) View.VISIBLE else View.GONE
+
+        toolbar.title = when (tabId) {
+            R.id.tabFilter -> "过滤"
+            R.id.tabRules -> "规则"
+            R.id.tabStatus -> "状态"
+            else -> getString(R.string.app_name)
+        }
+
+        currentFocus?.clearFocus()
+        scrollView.scrollTo(0, 0)
+        if (tabId == R.id.tabStatus) refreshStatus()
     }
 
     override fun onResume() {

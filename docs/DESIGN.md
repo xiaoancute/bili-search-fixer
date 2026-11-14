@@ -142,7 +142,7 @@ key = 归一化标题 + `|` + 归一化作者。只去完全相同的标题 + �
 - B 站进程通过 `XposedModule.getRemotePreferences(SETTINGS_PREFS)` 直接读取同一组设置，不再经过 ContentProvider，也不受模块 App 被 force-stop 影响。
 - Hook 状态和搜索统计由 B 站进程通过显式广播发出，模块 App 的 `StatusReceiver` 写入本地 prefs。
 - 状态包含：安装数/时间/进程/模块版本、最近搜索、累计搜索/删除数。
-- 设置页使用 Material 3 + XML：MaterialToolbar、MaterialCardView、MaterialSwitch、Slider、MaterialButtonToggleGroup、TextInputLayout。
+- 设置页使用 Material 3 + XML，底部导航拆成「过滤 / 规则 / 状态」三个搜索相关 Tab：MaterialToolbar、BottomNavigationView、MaterialCardView、MaterialSwitch、Slider、MaterialButtonToggleGroup、TextInputLayout。
 - 根布局处理 system bars insets；开关/滑条即时保存，文本规则失焦或 `onPause` 自动保存；状态卡放在页尾，文案只讲结果。
 
 ## 隐私

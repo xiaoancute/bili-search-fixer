@@ -293,7 +293,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="10dp"
-                            android:hint="屏蔽 UP 主（每行一个，名字或 mid）">
+                            android:hint="屏蔽 UP 主（名字或 mid）">
 
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/blockUpsInput"
@@ -309,7 +309,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="10dp"
-                            android:hint="白名单关键词（搜索词包含即跳过过滤）">
+                            android:hint="白名单关键词（包含即跳过）">
 
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/whitelistInput"

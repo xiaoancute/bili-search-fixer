@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-14T08:23:01Z",
+  "title": "Design System: BiliSearch Fixer",
+  "extensions": {
+    "colorMeta": {
+      "brand-pink": {
+        "role": "primary",
+        "displayName": "Bilibili Signal",
+        "canonical": "#FB7299"
+      },
+      "deep-ink": {
+        "role": "neutral",
+        "displayName": "Signal Ink",
+        "canonical": "#0B1020"
+      },
+      "surface-light": {
+        "role": "neutral",
+        "displayName": "Paper Light",
+        "canonical": "#FFFBFE"
+      },
+      "surface-dark": {
+        "role": "neutral",
+        "displayName": "Paper Dark",
+        "canonical": "#1C1B1F"
+      },
+      "secondary-container-light": {
+        "role": "secondary",
+        "displayName": "Selected Lavender",
+        "canonical": "#E8DEF8"
+      },
+      "error-container-light": {
+        "role": "error",
+        "displayName": "Warning Wash",
+        "canonical": "#F9DEDC"
+      }
+    },
+    "typographyMeta": {
+      "toolbar": {
+        "displayName": "Toolbar",
+        "purpose": "Current destination title."
+      },
+      "card-title": {
+        "displayName": "Card title",
+        "purpose": "The only bold step in content."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Labels, status summary, primary reading."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Secondary status and aggregate numbers."
+      },
+      "label-small": {
+        "displayName": "Label small",
+        "purpose": "Helper text, hints, bottom-nav labels."
+      }
+    },
+    "shadows": [],
+    "motion": {
+      "standard": "Material 3 default; no custom motion or decorative transitions."
+    },
+    "navigation": {
+      "type": "bottom-navigation",
+      "destinations": [
+        "过滤",
+        "规则",
+        "状态"
+      ],
+      "labels": "always visible",
+      "activeIndicator": "secondary-container",
+      "topBar": "current destination title + BiliSearch Fixer · version"
+    },
+    "narrative": {
+      "northStar": "The Search Lens",
+      "voice": "restrained, technical, direct",
+      "rules": [
+        "The Ten Percent Pink Rule",
+        "The One Bold Step Rule",
+        "The Flat-By-Default Rule"
+      ],
+      "dos": [
+        "One topic per card.",
+        "Result before mechanism.",
+        "Material 3 controls and theme roles.",
+        "Short one-line field hints."
+      ],
+      "donts": [
+        "No nested cards.",
+        "No shadows for hierarchy.",
+        "No large pink surfaces.",
+        "No promises the hook cannot keep.",
+        "No mixed save models."
+      ]
+    }
+  }
+}

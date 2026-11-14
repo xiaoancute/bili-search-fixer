@@ -46,11 +46,11 @@ SearchAllResponse        SearchByTypeResponse
 | 最低播放量 / 屏蔽词 / 屏蔽 UP | ✅ 有单测 |
 | 标题去重 / 只保留视频 / 隐藏推荐卡 | ✅ |
 | 本地重排（相关性 → 播放量） | ✅ |
-| Material 3 设置页 | ✅ XML + Material Components |
+| Material 3 三 Tab 设置页 | ✅ 过滤 / 规则 / 状态 + 底部导航 |
 | Hook 状态 + 累计/最近搜索统计 | ✅ |
 | 真机回归 | ✅ OnePlus / Android 16 / B站 9.16.1 |
 
-v0.6.2 已把设置同步切到 LSPosed 官方 `XposedService.getRemotePreferences`，状态改走显式广播，不再依赖 ContentProvider。设置页也做了 insets、分组、自动保存和状态文案打磨。真机验证基线：OnePlus PLF110 / Android 16 / B站 9.16.1。
+v0.7.1 已把模块 App 拆成三个搜索相关 Tab：过滤 / 规则 / 状态，底部导航常驻；设置同步走 LSPosed 官方 `XposedService.getRemotePreferences`，状态走显式广播。真机验证基线：OnePlus PLF110 / Android 16 / B站 9.16.1。
 
 ## 真机验证
 
@@ -122,8 +122,9 @@ search="原神攻略" kept=12/20 removed=8 ...
 
 ## 界面
 
-设置页使用 `Material 3 + XML`：
+设置页使用 `Material 3 + XML`，三个搜索相关 Tab：
 
+- 底部 `BottomNavigationView`：过滤 / 规则 / 状态
 - `MaterialToolbar` + `NestedScrollView`
 - `MaterialCardView` 分组
 - `MaterialSwitch` / `Slider` / `MaterialButtonToggleGroup`

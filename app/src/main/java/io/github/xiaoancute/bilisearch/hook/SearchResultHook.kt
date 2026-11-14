@@ -30,6 +30,34 @@ internal class SearchResultHook(
         return installed
     }
 
+    private fun hookGetter(className: String, getterName: String): Int {
+        val responseClass = runCatching {
+            Class.forName(className, false, classLoader)
+        }.getOrNull() ?: run {
+            xposed.log(Log.WARN, LOG_TAG, "class not found: " + className)
+            return 0
+        }
+
+        val getter = responseClass.methods.firstOrNull {
+            it.name == getterName && it.parameterCount == 0
+        } ?: run {
+            xposed.log(Log.WARN, LOG_TAG, "getter not found: " + className + "." + getterName)
+            return 0
+        }
+
+        xposed.hook(getter)
+            .setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH)
+            .intercept { chain ->
+                val result = chain.proceed()
+                val items = result as? List<*> ?: return@intercept result
+                val response = chain.thisObject ?: return@intercept result
+                filter(response, items)
+            }
+
+        xposed.log(Log.INFO, LOG_TAG, "hooked " + className + "." + getterName)
+        return 1
+    }
+
     private fun filter(response: Any, items: List<*>): List<*> {
         val current = settings.current()
         if (!current.enabled) return items

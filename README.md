@@ -50,7 +50,7 @@ SearchAllResponse        SearchByTypeResponse
 | Hook 状态 + 累计/最近搜索统计 | ✅ |
 | 真机回归 | ✅ OnePlus / Android 16 / B站 9.16.1 |
 
-v0.6.1 已把设置同步切到 LSPosed 官方 `XposedService.getRemotePreferences`，状态改走远程文件，不再依赖 ContentProvider，也不会被 force-stop 卡住。真机验证基线：OnePlus PLF110 / Android 16 / B站 9.16.1。
+v0.6.2 已把设置同步切到 LSPosed 官方 `XposedService.getRemotePreferences`，状态改走显式广播，不再依赖 ContentProvider。设置页也做了 insets、分组、自动保存和状态文案打磨。真机验证基线：OnePlus PLF110 / Android 16 / B站 9.16.1。
 
 ## 真机验证
 

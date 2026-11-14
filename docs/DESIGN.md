@@ -46,11 +46,11 @@ B 站 9.0+ 的 App 搜索走 Moss gRPC，JSON 接口是网页/旧版本的路径
 
 | 点 | 作用 | 备注 |
 |---|---|---|
-| `Application.attach / attachBaseContext` | 拿真实 ClassLoader | B 站有 Tribe 插件化 |
+| `onPackageReady` | 拿真实 App ClassLoader | Modern API 102 官方入口 |
 | `SearchAllResponse.getItemList` | 综合搜索 | 返回过滤后的 List |
 | `SearchByTypeResponse.getItemsList` | 分类搜索 | 视频/用户/直播 Tab |
 | `XposedService.getRemotePreferences` | 开关/阈值 | 模块 App 写，B 站进程读；框架托管 |
-| `XposedModule.openRemoteFile` | Hook/搜索统计 | B 站进程写 JSON，模块 App 读 |
+| `StatusReceiver` (explicit broadcast) | Hook/搜索统计 | B 站进程发广播，模块 App 写本地 prefs |
 
 ## 相关性算法
 
@@ -132,17 +132,18 @@ key = 归一化标题 + `|` + 归一化作者。只去完全相同的标题 + �
 
 ### 统计
 
-- provider 每次记录「保留 / 总数 / 删除」。
-- 累计搜索次数和累计删除数存进模块 App 的 prefs。
-- 同一关键词 1.5 秒内只记一次，避免 UI 多次取 getter 导致重复统计。
+- Hook 每次搜索通过显式广播回传「保留 / 总数 / 删除」。
+- `StatusReceiver` 把累计搜索次数和累计删除数写进模块 App 的本地 prefs。
+- 状态卡只展示结果，不展示「安装状态未回传」这类实现细节。
 
 ## 设置与状态
 
 - 模块 App 在 `Application.onCreate` 注册 `XposedServiceHelper.OnServiceListener`，拿到 `XposedService` 后通过 `getRemotePreferences(SETTINGS_PREFS)` 读写设置。
 - B 站进程通过 `XposedModule.getRemotePreferences(SETTINGS_PREFS)` 直接读取同一组设置，不再经过 ContentProvider，也不受模块 App 被 force-stop 影响。
-- Hook 状态和搜索统计由 B 站进程写入 `openRemoteFile(STATUS_FILE)`，模块 App 通过 `XposedService.openRemoteFile` 或私有目录读取。
-- 状态文件包含：安装数/时间/进程/模块版本、最近搜索、累计搜索/删除数。
+- Hook 状态和搜索统计由 B 站进程通过显式广播发出，模块 App 的 `StatusReceiver` 写入本地 prefs。
+- 状态包含：安装数/时间/进程/模块版本、最近搜索、累计搜索/删除数。
 - 设置页使用 Material 3 + XML：MaterialToolbar、MaterialCardView、MaterialSwitch、Slider、MaterialButtonToggleGroup、TextInputLayout。
+- 根布局处理 system bars insets；开关/滑条即时保存，文本规则失焦或 `onPause` 自动保存；状态卡放在页尾，文案只讲结果。
 
 ## 隐私
 

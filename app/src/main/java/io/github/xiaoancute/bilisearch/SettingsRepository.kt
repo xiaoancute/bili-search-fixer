@@ -14,7 +14,7 @@ import java.util.concurrent.Executors
 internal class SettingsRepository(private val context: Context) {
 
     private val uri = Uri.parse("content://" + SETTINGS_AUTHORITY)
-    private val reportExecutor = Executors.newSingleThreadExecutor { runnable ->
+    private val reportExecutor = Executors.newCachedThreadPool { runnable ->
         Thread(runnable, "BiliSearchStatus").apply { isDaemon = true }
     }
 

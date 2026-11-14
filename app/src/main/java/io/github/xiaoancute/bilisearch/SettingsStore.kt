@@ -43,7 +43,7 @@ internal class SettingsStore(private val prefs: SharedPreferences?) {
             .putString(KEY_WHITELIST, settings.whitelist.joinToString("\n"))
 
         val committed = editor.commit()
-        if (!committed) Log.w(LOG_TAG, "settings commit failed")
+        Log.d(LOG_TAG, "settings write threshold=" + settings.threshold + " committed=" + committed)
     }
 
     companion object {

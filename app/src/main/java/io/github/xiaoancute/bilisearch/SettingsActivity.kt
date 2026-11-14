@@ -36,6 +36,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var strengthHelp: TextView
     private lateinit var presetGroup: MaterialButtonToggleGroup
     private var remoteAvailable = false
+    private var strengthReady = false
     private var selectedTab = R.id.tabFilter
 
     private val serviceListener = BiliSearchApplication.ServiceStateListener { service ->
@@ -190,11 +191,14 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun setupStrength() {
+        strengthReady = false
         presetGroup.isSaveEnabled = false
+        intArrayOf(R.id.presetLoose, R.id.presetStandard, R.id.presetStrict)
+            .forEach { findViewById<View>(it).isSaveEnabled = false }
         bindStrength(FilterStrength.fromThreshold(settings.threshold))
 
         presetGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (!isChecked) return@addOnButtonCheckedListener
+            if (!isChecked || !strengthReady) return@addOnButtonCheckedListener
 
             val strength = when (checkedId) {
                 R.id.presetLoose -> FilterStrength.LOOSE
@@ -205,6 +209,7 @@ class SettingsActivity : AppCompatActivity() {
             updateSettings { it.copy(threshold = strength.threshold) }
             bindStrength(strength)
         }
+        presetGroup.post { strengthReady = true }
     }
 
     private fun bindStrength(strength: FilterStrength) {

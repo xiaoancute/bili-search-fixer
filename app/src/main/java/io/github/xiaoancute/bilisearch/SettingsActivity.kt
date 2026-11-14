@@ -40,6 +40,13 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var presetGroup: MaterialButtonToggleGroup
     private var remoteAvailable = false
     private var syncingSlider = false
+    private var selectedTab = R.id.tabFilter
+
+    private val serviceListener = BiliSearchApplication.ServiceStateListener { service ->
+        if (service != null && !remoteAvailable) {
+            runOnUiThread { if (!isFinishing) recreate() }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,6 +59,7 @@ class SettingsActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_settings)
         applyInsets()
+        selectedTab = savedInstanceState?.getInt(STATE_TAB, R.id.tabFilter) ?: R.id.tabFilter
 
         toolbar = findViewById(R.id.toolbar)
         scrollView = findViewById(R.id.scroll)
@@ -92,15 +100,17 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun setupTabs() {
         val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNav)
+        bottomNav.isSaveEnabled = false
         bottomNav.setOnItemSelectedListener { item ->
             showTab(item.itemId)
             true
         }
-        bottomNav.selectedItemId = R.id.tabFilter
-        showTab(R.id.tabFilter)
+        bottomNav.selectedItemId = selectedTab
+        showTab(selectedTab)
     }
 
     private fun showTab(tabId: Int) {
+        selectedTab = tabId
         filterContent.visibility = if (tabId == R.id.tabFilter) View.VISIBLE else View.GONE
         rulesContent.visibility = if (tabId == R.id.tabRules) View.VISIBLE else View.GONE
         statusContent.visibility = if (tabId == R.id.tabStatus) View.VISIBLE else View.GONE
@@ -115,6 +125,16 @@ class SettingsActivity : AppCompatActivity() {
         currentFocus?.clearFocus()
         scrollView.scrollTo(0, 0)
         if (tabId == R.id.tabStatus) refreshStatus()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        BiliSearchApplication.addServiceStateListener(serviceListener)
+    }
+
+    override fun onStop() {
+        BiliSearchApplication.removeServiceStateListener(serviceListener)
+        super.onStop()
     }
 
     override fun onResume() {
@@ -334,7 +354,16 @@ class SettingsActivity : AppCompatActivity() {
         statsText.text = "累计：搜索 " + totalSearches + " 次，删除 " + totalRemoved + " 条\n" + recentText
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putInt(STATE_TAB, selectedTab)
+        super.onSaveInstanceState(outState)
+    }
+
     private fun versionName(): String = runCatching {
         packageManager.getPackageInfo(packageName, 0).versionName
     }.getOrNull() ?: "?"
+
+    private companion object {
+        const val STATE_TAB = "selected_tab"
+    }
 }

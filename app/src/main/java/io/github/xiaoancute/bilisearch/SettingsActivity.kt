@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.Bundle
 import android.text.format.DateFormat
+import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -193,8 +194,17 @@ class SettingsActivity : AppCompatActivity() {
     private fun setupStrength() {
         strengthReady = false
         presetGroup.isSaveEnabled = false
-        intArrayOf(R.id.presetLoose, R.id.presetStandard, R.id.presetStrict)
-            .forEach { findViewById<View>(it).isSaveEnabled = false }
+        intArrayOf(R.id.presetLoose, R.id.presetStandard, R.id.presetStrict).forEach { id ->
+            val button = findViewById<View>(id)
+            button.isSaveEnabled = false
+            button.setOnTouchListener { _, event ->
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) strengthReady = true
+                false
+            }
+            button.setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) strengthReady = true
+            }
+        }
         bindStrength(FilterStrength.fromThreshold(settings.threshold))
 
         presetGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
@@ -209,7 +219,6 @@ class SettingsActivity : AppCompatActivity() {
             updateSettings { it.copy(threshold = strength.threshold) }
             bindStrength(strength)
         }
-        presetGroup.post { strengthReady = true }
     }
 
     private fun bindStrength(strength: FilterStrength) {

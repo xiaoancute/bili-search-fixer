@@ -50,7 +50,7 @@ SearchAllResponse        SearchByTypeResponse
 | Hook 状态 + 累计/最近搜索统计 | ✅ |
 | 真机回归 | ✅ OnePlus / Android 16 / B站 9.16.1 |
 
-v0.8.4 已把模块 App 拆成三个搜索相关 Tab：过滤 / 规则 / 状态，底部导航常驻；设置同步走 LSPosed 官方 `XposedService.getRemotePreferences`，状态走显式广播。真机验证基线：OnePlus PLF110 / Android 16 / B站 9.16.1。
+v0.8.5 已把模块 App 拆成三个搜索相关 Tab：过滤 / 规则 / 状态，底部导航常驻；设置同步走 LSPosed 官方 `XposedService.getRemotePreferences`，状态走显式广播。真机验证基线：OnePlus PLF110 / Android 16 / B站 9.16.1。
 
 ## 真机验证
 

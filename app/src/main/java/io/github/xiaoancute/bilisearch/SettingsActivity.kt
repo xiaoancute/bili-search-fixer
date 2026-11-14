@@ -140,8 +140,9 @@ class SettingsActivity : AppCompatActivity() {
         if (!remoteAvailable) {
             val remote = BiliSearchApplication.remotePreferences()
             if (remote != null) {
-                remoteAvailable = true
-                settingsStore = SettingsStore(remote)
+                // Let the recreated instance read the remote store. Mutating
+                // remoteAvailable here would make onPause write the local
+                // fallback values back over the remote ones.
                 recreate()
                 return
             }

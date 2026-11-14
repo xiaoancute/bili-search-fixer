@@ -100,21 +100,18 @@
                         </com.google.android.material.button.MaterialButtonToggleGroup>
 
                         <TextView
-                            android:id="@+id/thresholdLabel"
+                            android:id="@+id/strengthHelp"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
-                            android:textSize="14sp" />
-
-                        <com.google.android.material.slider.Slider
-                            android:id="@+id/thresholdSlider"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content" />
+                            android:lineSpacingExtra="2dp"
+                            android:textSize="13sp" />
 
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="30 / 50 / 70 是快捷值，滑条可继续微调。数值越高，删得越狠。"
+                            android:layout_marginTop="6dp"
+                            android:text="不知道选哪个就用标准。删多了往宽松调，删少了往严格调。"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp" />
                     </LinearLayout>

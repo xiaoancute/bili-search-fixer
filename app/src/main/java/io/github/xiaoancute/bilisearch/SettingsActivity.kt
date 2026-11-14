@@ -2,7 +2,6 @@ package io.github.xiaoancute.bilisearch
 
 import android.content.Context
 import android.content.res.Configuration
-import android.os.Build
 import android.os.Bundle
 import android.text.format.DateFormat
 import android.view.View
@@ -18,7 +17,6 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.materialswitch.MaterialSwitch
-import com.google.android.material.slider.Slider
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import java.util.Date
@@ -35,11 +33,9 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var statusContent: View
     private lateinit var statusText: TextView
     private lateinit var statsText: TextView
-    private lateinit var thresholdLabel: TextView
-    private lateinit var thresholdSlider: Slider
+    private lateinit var strengthHelp: TextView
     private lateinit var presetGroup: MaterialButtonToggleGroup
     private var remoteAvailable = false
-    private var syncingSlider = false
     private var selectedTab = R.id.tabFilter
 
     private val serviceListener = BiliSearchApplication.ServiceStateListener { service ->
@@ -71,8 +67,7 @@ class SettingsActivity : AppCompatActivity() {
 
         statusText = findViewById(R.id.statusText)
         statsText = findViewById(R.id.statsText)
-        thresholdLabel = findViewById(R.id.thresholdLabel)
-        thresholdSlider = findViewById(R.id.thresholdSlider)
+        strengthHelp = findViewById(R.id.strengthHelp)
         presetGroup = findViewById(R.id.presetGroup)
 
         findViewById<TextView>(R.id.syncWarning).visibility =
@@ -85,7 +80,7 @@ class SettingsActivity : AppCompatActivity() {
         bindSwitch(R.id.dedupeSwitch, { it.dedupe }, { s, v -> s.copy(dedupe = v) })
         bindSwitch(R.id.rerankSwitch, { it.rerank }, { s, v -> s.copy(rerank = v) })
 
-        setupThreshold()
+        setupStrength()
         setupRules()
 
         if (!remoteAvailable) {
@@ -177,7 +172,6 @@ class SettingsActivity : AppCompatActivity() {
     private fun setControlsEnabled(enabled: Boolean) {
         intArrayOf(
             R.id.presetGroup,
-            R.id.thresholdSlider,
             R.id.enableSwitch,
             R.id.dropAdsSwitch,
             R.id.videoOnlySwitch,
@@ -195,49 +189,29 @@ class SettingsActivity : AppCompatActivity() {
             .forEach { findViewById<View>(it).isEnabled = enabled }
     }
 
-    private fun setupThreshold() {
-        thresholdSlider.valueFrom = 0f
-        thresholdSlider.valueTo = 100f
-        thresholdSlider.stepSize = 5f
-
-        val threshold = (Math.round(settings.threshold.coerceIn(0, 100) / 5f) * 5).coerceIn(0, 100)
-        thresholdSlider.value = threshold.toFloat()
-        thresholdLabel.text = "相关性阈值：" + threshold + "%"
-        updateThresholdA11y(threshold)
-        presetGroup.check(presetIdFor(threshold))
-
-        thresholdSlider.addOnChangeListener(object : Slider.OnChangeListener {
-            override fun onValueChange(slider: Slider, value: Float, fromUser: Boolean) {
-                val progress = value.toInt()
-                thresholdLabel.text = "相关性阈值：" + progress + "%"
-                updateThresholdA11y(progress)
-                if (fromUser) {
-                    updateSettings { it.copy(threshold = progress) }
-                    syncingSlider = true
-                    presetGroup.check(presetIdFor(progress))
-                    syncingSlider = false
-                }
-            }
-        })
+    private fun setupStrength() {
+        bindStrength(FilterStrength.fromThreshold(settings.threshold))
 
         presetGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (!isChecked || syncingSlider) return@addOnButtonCheckedListener
+            if (!isChecked) return@addOnButtonCheckedListener
 
-            val value = when (checkedId) {
-                R.id.presetLoose -> 30
-                R.id.presetStandard -> 50
-                R.id.presetStrict -> 70
+            val strength = when (checkedId) {
+                R.id.presetLoose -> FilterStrength.LOOSE
+                R.id.presetStandard -> FilterStrength.STANDARD
+                R.id.presetStrict -> FilterStrength.STRICT
                 else -> return@addOnButtonCheckedListener
             }
-            thresholdSlider.value = value.toFloat()
-            updateSettings { it.copy(threshold = value) }
+            updateSettings { it.copy(threshold = strength.threshold) }
+            bindStrength(strength)
         }
     }
 
-    private fun updateThresholdA11y(progress: Int) {
-        thresholdSlider.contentDescription = "相关性阈值 " + progress + "%"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            thresholdSlider.stateDescription = progress.toString() + "%"
+    private fun bindStrength(strength: FilterStrength) {
+        presetGroup.check(presetIdFor(strength))
+        strengthHelp.text = when (strength) {
+            FilterStrength.LOOSE -> "宽松：只删标题完全不像的卡，可能保留一些边缘内容。"
+            FilterStrength.STANDARD -> "标准（推荐）：标题要覆盖大部分关键词；只在简介里蹭词的会删。"
+            FilterStrength.STRICT -> "严格：只留标题高度匹配的结果，适合精确找教程；容易删多。"
         }
     }
 
@@ -311,10 +285,10 @@ class SettingsActivity : AppCompatActivity() {
         settingsStore.write(settings)
     }
 
-    private fun presetIdFor(threshold: Int): Int = when {
-        threshold <= 35 -> R.id.presetLoose
-        threshold <= 65 -> R.id.presetStandard
-        else -> R.id.presetStrict
+    private fun presetIdFor(strength: FilterStrength): Int = when (strength) {
+        FilterStrength.LOOSE -> R.id.presetLoose
+        FilterStrength.STANDARD -> R.id.presetStandard
+        FilterStrength.STRICT -> R.id.presetStrict
     }
 
     private fun refreshStatus() {

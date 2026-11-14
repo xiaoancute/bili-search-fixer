@@ -50,7 +50,7 @@ SearchAllResponse        SearchByTypeResponse
 | Hook 状态 + 累计/最近搜索统计 | ✅ |
 | 真机回归 | ✅ OnePlus / Android 16 / B站 9.16.1 |
 
-v0.7.3 已把模块 App 拆成三个搜索相关 Tab：过滤 / 规则 / 状态，底部导航常驻；设置同步走 LSPosed 官方 `XposedService.getRemotePreferences`，状态走显式广播。真机验证基线：OnePlus PLF110 / Android 16 / B站 9.16.1。
+v0.8.0 已把模块 App 拆成三个搜索相关 Tab：过滤 / 规则 / 状态，底部导航常驻；设置同步走 LSPosed 官方 `XposedService.getRemotePreferences`，状态走显式广播。真机验证基线：OnePlus PLF110 / Android 16 / B站 9.16.1。
 
 ## 真机验证
 
@@ -81,7 +81,7 @@ gh run download --name BiliSearchFixer-debug     # 需要调试时
 ## 安装
 
 1. 手机安装支持 Modern API 102 的 LSPosed（或 NPatch）。
-2. 安装 APK，桌面会出现「BiliSearch Fixer」，打开后可开关过滤、调阈值。
+2. 安装 APK，桌面会出现「BiliSearch Fixer」，打开后可开关过滤、选强度。
 3. 在框架里启用模块。
 4. 作用域勾选「哔哩哔哩」(`tv.danmaku.bili`)。
 5. 强制停止并重启 B 站，搜索一次。
@@ -118,7 +118,7 @@ search="原神攻略" kept=12/20 removed=8 ...
 - **屏蔽 UP 主**：名字或 mid，每行一个
 - **白名单关键词**：搜索词包含其中任意一个时跳过过滤
 
-强度支持「宽松 30% / 标准 50% / 严格 70%」三个预设，也可以拖动滑条微调。
+强度是三档命名模式：宽松 / 标准（推荐）/ 严格。每档下方有一句人话说明，不再暴露 0-100% 的滑条。
 
 ## 界面
 
@@ -127,7 +127,7 @@ search="原神攻略" kept=12/20 removed=8 ...
 - 底部 `BottomNavigationView`：过滤 / 规则 / 状态
 - `MaterialToolbar` + `NestedScrollView`
 - `MaterialCardView` 分组
-- `MaterialSwitch` / `Slider` / `MaterialButtonToggleGroup`
+- `MaterialSwitch` / `MaterialButtonToggleGroup`
 - `TextInputLayout` 输入规则
 - 自动适配深色模式
 

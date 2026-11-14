@@ -13,7 +13,7 @@ internal class SettingsStore(private val prefs: SharedPreferences?) {
         val p = prefs ?: return Settings()
         return Settings(
             enabled = p.getBoolean(KEY_ENABLED, true),
-            threshold = p.getInt(KEY_THRESHOLD, 50).coerceIn(0, 100),
+            threshold = FilterStrength.fromThreshold(p.getInt(KEY_THRESHOLD, 50)).threshold,
             dropAds = p.getBoolean(KEY_DROP_ADS, true),
             videoOnly = p.getBoolean(KEY_VIDEO_ONLY, false),
             hideRecommend = p.getBoolean(KEY_HIDE_RECOMMEND, false),

@@ -151,17 +151,18 @@ Cards use a 16dp corner radius, text fields use the Material outlined 4dp corner
 - **Primary:** Material text button for low-weight actions such as refresh; brand pink text on surface.
 - **Preset group:** outlined Material buttons in a single-selection group; selected state uses the secondary container, not a filled pink block.
 - **Shape:** Material pill (20dp).
-- **States:** disabled when the LSPosed service is unavailable; selected preset reflects the slider value.
+- **States:** disabled when the LSPosed service is unavailable; selected preset reflects the stored strength.
 
 ### Switches
 - **Style:** Material 3 switch, full row, 48dp minimum height.
 - **State:** checked uses the brand pink; unchecked stays neutral. Never use a custom track.
 - **Copy:** a short verb phrase; supporting text goes below, not inside the switch label.
 
-### Slider
-- **Style:** Material 3 slider with 5-point steps from 0 to 100.
-- **State:** the numeric label updates live; TalkBack reads the value through `contentDescription` and `stateDescription`.
-- **Behavior:** presets are shortcuts; the slider is the fine control.
+### Strength Selector
+- **Shape:** three outlined Material buttons in a single-selection group: 宽松 / 标准 / 严格.
+- **Modes:** 标准 is the recommended default; no raw percentage is exposed.
+- **Explanation:** a 13sp helper line changes with the selected mode; a 12sp footer says "不知道选哪个就用标准。删多了往宽松调，删少了往严格调。"
+- **State:** selected uses the secondary container; disabled when the LSPosed service is unavailable.
 
 ### Inputs / Fields
 - **Style:** Material 3 outlined text field, 4dp radius, 56dp minimum height.
@@ -196,3 +197,4 @@ Cards use a 16dp corner radius, text fields use the Material outlined 4dp corner
 - **Don't** fill large surfaces with Bilibili Signal; it is a state color.
 - **Don't** promise actions the hook cannot perform (for example, hiding the bottom related-search block).
 - **Don't** mix autosave and explicit-save models on the same screen.
+- **Don't** expose a 0-100 relevance slider; users choose a named mode with a plain-language explanation.

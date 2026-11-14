@@ -20,7 +20,7 @@ internal class SearchResultHook(
     private val xposed: XposedInterface,
     private val classLoader: ClassLoader,
     private val settings: SettingsRepository,
-    private val status: StatusReporter?
+    private val status: StatusReporter
 ) {
 
     private val policy = SearchResultPolicy()
@@ -147,7 +147,7 @@ internal class SearchResultHook(
             }
         }
 
-        status?.search(keyword, slots.size, items.size, removedCount)
+        status.search(keyword, slots.size, items.size, removedCount)
 
         if (removedCount == 0 && !current.rerank) return items
 

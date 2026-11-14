@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.Bundle
 import android.text.format.DateFormat
-import android.util.Log
 import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -54,7 +53,6 @@ class SettingsActivity : AppCompatActivity() {
         settingsStore = SettingsStore(remote ?: getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE))
         statusStore = StatusStore(getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE))
         settings = settingsStore.read()
-        Log.d(LOG_TAG, "activity read threshold=" + settings.threshold)
 
         setContentView(R.layout.activity_settings)
         applyInsets()
@@ -192,6 +190,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun setupStrength() {
+        presetGroup.isSaveEnabled = false
         bindStrength(FilterStrength.fromThreshold(settings.threshold))
 
         presetGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
@@ -284,7 +283,6 @@ class SettingsActivity : AppCompatActivity() {
     private fun updateSettings(transform: (Settings) -> Settings) {
         if (!remoteAvailable) return
         settings = transform(settings)
-        Log.d(LOG_TAG, "activity update threshold=" + settings.threshold)
         settingsStore.write(settings)
     }
 

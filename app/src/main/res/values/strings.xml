@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">BiliSearch Fixer</string>
     <string name="xposed_description">过滤 B 站客户端搜索结果中与关键词无关的内容</string>
+    <string name="settings_subtitle">只改 B 站搜索内容</string>
 </resources>

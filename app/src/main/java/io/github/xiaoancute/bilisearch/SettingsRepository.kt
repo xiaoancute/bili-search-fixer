@@ -24,6 +24,12 @@ internal class SettingsRepository(private val context: Context) {
     @Volatile
     private var cachedAt = 0L
 
+    @Volatile
+    private var lastSearchKeyword: String? = null
+
+    @Volatile
+    private var lastSearchAt = 0L
+
     fun current(): Settings {
         val now = SystemClock.elapsedRealtime()
         if (now - cachedAt < CACHE_MS) return cached
@@ -38,9 +44,24 @@ internal class SettingsRepository(private val context: Context) {
         Settings(
             enabled = bundle.getBoolean(KEY_ENABLED, true),
             threshold = bundle.getInt(KEY_THRESHOLD, 50),
-            dropAds = bundle.getBoolean(KEY_DROP_ADS, true)
+            dropAds = bundle.getBoolean(KEY_DROP_ADS, true),
+            videoOnly = bundle.getBoolean(KEY_VIDEO_ONLY, false),
+            hideRecommend = bundle.getBoolean(KEY_HIDE_RECOMMEND, false),
+            dedupe = bundle.getBoolean(KEY_DEDUPE, false),
+            rerank = bundle.getBoolean(KEY_RERANK, false),
+            minPlay = bundle.getInt(KEY_MIN_PLAY, 0).coerceAtLeast(0),
+            blockWords = splitList(bundle.getString(KEY_BLOCK_WORDS)),
+            blockUps = splitList(bundle.getString(KEY_BLOCK_UPS)),
+            whitelist = splitList(bundle.getString(KEY_WHITELIST))
         )
     }.getOrDefault(Settings())
+
+    private fun splitList(raw: String?): List<String> =
+        raw.orEmpty()
+            .split('\n', ',', '，', ';', '；')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
 
     fun reportStatusAsync(installed: Int, process: String, version: String) {
         executor.execute {
@@ -56,6 +77,11 @@ internal class SettingsRepository(private val context: Context) {
     }
 
     fun reportSearchAsync(keyword: String, kept: Int, total: Int, removed: Int) {
+        val now = SystemClock.elapsedRealtime()
+        if (keyword == lastSearchKeyword && now - lastSearchAt < SEARCH_REPORT_INTERVAL_MS) return
+        lastSearchKeyword = keyword
+        lastSearchAt = now
+
         executor.execute {
             runCatching {
                 val extras = Bundle().apply {
@@ -71,5 +97,6 @@ internal class SettingsRepository(private val context: Context) {
 
     private companion object {
         const val CACHE_MS = 2_000L
+        const val SEARCH_REPORT_INTERVAL_MS = 1_500L
     }
 }

@@ -1,34 +1,57 @@
 package io.github.xiaoancute.bilisearch
 
-import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
-import android.graphics.Color
-import android.graphics.Typeface
 import android.os.Bundle
 import android.text.format.DateFormat
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.SeekBar
-import android.widget.Switch
 import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.button.MaterialButtonToggleGroup
+import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.slider.Slider
+import com.google.android.material.textfield.TextInputEditText
 import java.util.Date
 
-class SettingsActivity : Activity() {
+class SettingsActivity : AppCompatActivity() {
 
     private lateinit var prefs: SharedPreferences
-    private lateinit var statusLabel: TextView
+    private lateinit var statusText: TextView
+    private lateinit var statsText: TextView
     private lateinit var thresholdLabel: TextView
+    private lateinit var thresholdSlider: Slider
+    private lateinit var presetGroup: MaterialButtonToggleGroup
+    private var syncingSlider = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        window.statusBarColor = Color.rgb(20, 24, 38)
-        title = "BiliSearch Fixer"
-        setContentView(buildUi())
+        setContentView(R.layout.activity_settings)
+
+        val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
+        toolbar.subtitle = "v" + versionName() + " · 只改搜索"
+
+        statusText = findViewById(R.id.statusText)
+        statsText = findViewById(R.id.statsText)
+        thresholdLabel = findViewById(R.id.thresholdLabel)
+        thresholdSlider = findViewById(R.id.thresholdSlider)
+        presetGroup = findViewById(R.id.presetGroup)
+
+        bindSwitch(R.id.enableSwitch, KEY_ENABLED, true)
+        bindSwitch(R.id.dropAdsSwitch, KEY_DROP_ADS, true)
+        bindSwitch(R.id.videoOnlySwitch, KEY_VIDEO_ONLY, false)
+        bindSwitch(R.id.hideRecommendSwitch, KEY_HIDE_RECOMMEND, false)
+        bindSwitch(R.id.dedupeSwitch, KEY_DEDUPE, false)
+        bindSwitch(R.id.rerankSwitch, KEY_RERANK, false)
+
+        setupThreshold()
+        setupRules()
+
+        findViewById<MaterialButton>(R.id.refreshButton).setOnClickListener {
+            refreshStatus()
+        }
     }
 
     override fun onResume() {
@@ -36,105 +59,79 @@ class SettingsActivity : Activity() {
         refreshStatus()
     }
 
-    private fun buildUi(): View {
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(28), dp(24), dp(32))
-            setBackgroundColor(Color.rgb(247, 247, 250))
-        }
+    private fun setupThreshold() {
+        thresholdSlider.valueFrom = 0f
+        thresholdSlider.valueTo = 100f
+        thresholdSlider.stepSize = 5f
 
-        root.addView(text("BiliSearch Fixer", 26f, Color.rgb(20, 24, 38), true))
-        root.addView(
-            text("只改 B 站搜索内容", 14f, Color.DKGRAY, false).apply {
-                setPadding(0, dp(4), 0, dp(18))
-            }
-        )
+        val raw = prefs.getInt(KEY_THRESHOLD, 50).coerceIn(0, 100)
+        val threshold = (Math.round(raw / 5f) * 5).coerceIn(0, 100)
+        thresholdSlider.value = threshold.toFloat()
+        thresholdLabel.text = "相关性阈值：" + threshold + "%"
+        presetGroup.check(presetIdFor(threshold))
 
-        statusLabel = text("", 13f, Color.DKGRAY, false).apply {
-            setPadding(0, 0, 0, dp(18))
-        }
-        root.addView(statusLabel)
-
-        root.addView(
-            Switch(this).apply {
-                text = "启用搜索过滤"
-                isChecked = prefs.getBoolean(KEY_ENABLED, true)
-                setOnCheckedChangeListener { _, value ->
-                    prefs.edit().putBoolean(KEY_ENABLED, value).apply()
+        thresholdSlider.addOnChangeListener(object : Slider.OnChangeListener {
+            override fun onValueChange(slider: Slider, value: Float, fromUser: Boolean) {
+                val progress = value.toInt()
+                thresholdLabel.text = "相关性阈值：" + progress + "%"
+                if (fromUser) {
+                    prefs.edit().putInt(KEY_THRESHOLD, progress).apply()
+                    syncingSlider = true
+                    presetGroup.check(presetIdFor(progress))
+                    syncingSlider = false
                 }
             }
-        )
+        })
 
-        root.addView(
-            Switch(this).apply {
-                text = "删除广告 / 商品卡"
-                isChecked = prefs.getBoolean(KEY_DROP_ADS, true)
-                setOnCheckedChangeListener { _, value ->
-                    prefs.edit().putBoolean(KEY_DROP_ADS, value).apply()
-                }
+        presetGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked || syncingSlider) return@addOnButtonCheckedListener
+
+            val value = when (checkedId) {
+                R.id.presetLoose -> 30
+                R.id.presetStandard -> 50
+                R.id.presetStrict -> 70
+                else -> return@addOnButtonCheckedListener
             }
-        )
-
-        thresholdLabel = text("", 15f, Color.rgb(20, 24, 38), true).apply {
-            setPadding(0, dp(20), 0, dp(4))
+            thresholdSlider.value = value.toFloat()
+            prefs.edit().putInt(KEY_THRESHOLD, value).apply()
         }
-        root.addView(thresholdLabel)
+    }
 
-        val seek = SeekBar(this).apply {
-            max = 100
-            progress = prefs.getInt(KEY_THRESHOLD, 50)
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    thresholdLabel.text = "相关性阈值：" + progress + "%"
-                    if (fromUser) {
-                        prefs.edit().putInt(KEY_THRESHOLD, progress).apply()
-                    }
-                }
+    private fun setupRules() {
+        val minPlayInput = findViewById<TextInputEditText>(R.id.minPlayInput)
+        val blockWordsInput = findViewById<TextInputEditText>(R.id.blockWordsInput)
+        val blockUpsInput = findViewById<TextInputEditText>(R.id.blockUpsInput)
+        val whitelistInput = findViewById<TextInputEditText>(R.id.whitelistInput)
 
-                override fun onStartTrackingTouch(bar: SeekBar?) = Unit
+        minPlayInput.setText(prefs.getInt(KEY_MIN_PLAY, 0).toString())
+        blockWordsInput.setText(prefs.getString(KEY_BLOCK_WORDS, ""))
+        blockUpsInput.setText(prefs.getString(KEY_BLOCK_UPS, ""))
+        whitelistInput.setText(prefs.getString(KEY_WHITELIST, ""))
 
-                override fun onStopTrackingTouch(bar: SeekBar?) = Unit
-            })
+        findViewById<MaterialButton>(R.id.saveRulesButton).setOnClickListener {
+            val minPlay = minPlayInput.text?.toString()?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+            prefs.edit()
+                .putInt(KEY_MIN_PLAY, minPlay)
+                .putString(KEY_BLOCK_WORDS, blockWordsInput.text?.toString().orEmpty())
+                .putString(KEY_BLOCK_UPS, blockUpsInput.text?.toString().orEmpty())
+                .putString(KEY_WHITELIST, whitelistInput.text?.toString().orEmpty())
+                .apply()
+            Toast.makeText(this, "规则已保存，下一次搜索生效", Toast.LENGTH_SHORT).show()
         }
-        thresholdLabel.text = "相关性阈值：" + seek.progress + "%"
-        root.addView(seek)
+    }
 
-        root.addView(
-            text("越高越严格。默认 50%，只删和关键词零关联的结果。", 12f, Color.GRAY, false).apply {
-                setPadding(0, dp(4), 0, dp(22))
-            }
-        )
+    private fun bindSwitch(id: Int, key: String, defaultValue: Boolean) {
+        val view = findViewById<MaterialSwitch>(id)
+        view.isChecked = prefs.getBoolean(key, defaultValue)
+        view.setOnCheckedChangeListener { _, checked ->
+            prefs.edit().putBoolean(key, checked).apply()
+        }
+    }
 
-        root.addView(text("规则语法", 16f, Color.rgb(20, 24, 38), true))
-        root.addView(
-            text(
-                "摄影 -入门 #ai @影视飓风\n\n" +
-                    "- 排除词    # 标签/简介    @ UP主\n" +
-                    "搜索时直接输入，模块会在本地过滤结果。",
-                13f,
-                Color.DKGRAY,
-                false
-            ).apply { setPadding(0, dp(4), 0, dp(8)) }
-        )
-
-        root.addView(
-            Button(this).apply {
-                text = "刷新 Hook 状态"
-                setOnClickListener { refreshStatus() }
-            }.apply { setPadding(0, dp(18), 0, 0) }
-        )
-
-        root.addView(
-            text(
-                "使用步骤：LSPosed / NPatch 启用模块 → 作用域勾选「哔哩哔哩」" +
-                    "→ 强制停止并重启 B 站 → 搜索一次。",
-                12f,
-                Color.GRAY,
-                false
-            ).apply { setPadding(0, dp(18), 0, 0) }
-        )
-
-        return ScrollView(this).apply { addView(root) }
+    private fun presetIdFor(threshold: Int): Int = when {
+        threshold <= 35 -> R.id.presetLoose
+        threshold <= 65 -> R.id.presetStandard
+        else -> R.id.presetStrict
     }
 
     private fun refreshStatus() {
@@ -142,12 +139,6 @@ class SettingsActivity : Activity() {
         val installed = prefs.getInt(KEY_STATUS_INSTALLED, 0)
         val process = prefs.getString(KEY_STATUS_PROCESS, null)
         val version = prefs.getString(KEY_STATUS_VERSION, null)
-
-        val searchTime = prefs.getLong(KEY_STATUS_SEARCH_TIME, 0L)
-        val searchKeyword = prefs.getString(KEY_STATUS_SEARCH_KEYWORD, null)
-        val kept = prefs.getInt(KEY_STATUS_SEARCH_KEPT, 0)
-        val total = prefs.getInt(KEY_STATUS_SEARCH_TOTAL, 0)
-        val removed = prefs.getInt(KEY_STATUS_SEARCH_REMOVED, 0)
 
         val hookText = if (time == 0L) {
             "尚未收到 Hook 上报。确认模块已启用、作用域已勾选 B 站，并重启 B 站。"
@@ -158,29 +149,27 @@ class SettingsActivity : Activity() {
                 "，模块 " + (version ?: "未知")
         }
 
-        val searchText = if (searchTime == 0L) {
-            "尚未记录到搜索过滤。重启 B 站后搜索一次。"
+        val totalSearches = prefs.getInt(KEY_TOTAL_SEARCHES, 0)
+        val totalRemoved = prefs.getInt(KEY_TOTAL_REMOVED, 0)
+        val searchTime = prefs.getLong(KEY_STATUS_SEARCH_TIME, 0L)
+        val searchKeyword = prefs.getString(KEY_STATUS_SEARCH_KEYWORD, null)
+        val kept = prefs.getInt(KEY_STATUS_SEARCH_KEPT, 0)
+        val total = prefs.getInt(KEY_STATUS_SEARCH_TOTAL, 0)
+        val removed = prefs.getInt(KEY_STATUS_SEARCH_REMOVED, 0)
+
+        val recentText = if (searchTime == 0L) {
+            "还没有搜索记录。"
         } else {
-            val whenText = DateFormat.format("yyyy-MM-dd HH:mm:ss", Date(searchTime))
-            "最近搜索：\"" + (searchKeyword ?: "") + "\"" +
-                "\n保留 " + kept + "/" + total + "，删除 " + removed +
-                "（" + whenText + "）"
+            val whenText = DateFormat.format("MM-dd HH:mm:ss", Date(searchTime))
+            "最近：\"" + (searchKeyword ?: "") + "\" 保留 " + kept + "/" + total +
+                "，删除 " + removed + "（" + whenText + "）"
         }
 
-        statusLabel.text = hookText + "\n\n" + searchText
+        statusText.text = hookText
+        statsText.text = "累计：搜索 " + totalSearches + " 次，删除 " + totalRemoved + " 条\n" + recentText
     }
 
-    private fun text(value: String, size: Float, color: Int, bold: Boolean): TextView =
-        TextView(this).apply {
-            text = value
-            textSize = size
-            setTextColor(color)
-            if (bold) setTypeface(typeface, Typeface.BOLD)
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-        }
-
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+    private fun versionName(): String = runCatching {
+        packageManager.getPackageInfo(packageName, 0).versionName
+    }.getOrNull() ?: "?"
 }

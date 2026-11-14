@@ -25,11 +25,14 @@ BiliBili 9.0+
        ├─ SearchAllResponse.getItemList()
        └─ SearchByTypeResponse.getItemsList()
             └─ [Hook] 拿到 List<Item> + response.getKeyword()
-                 ├─ CM / PURCHASE -> 删
-                 ├─ AV -> 读 SearchVideoCard 的 title/author/desc/play
+                 ├─ 总开关 / 白名单 -> 直接返回
+                 ├─ CM / PURCHASE / 推荐卡 -> 删
+                 ├─ 只保留视频 -> 非 AV 卡删
+                 ├─ AV -> 读 title/author/mid/desc/play
+                 │        ├─ 屏蔽词 / 屏蔽 UP / 最低播放量 / 去重
                  │        └─ SearchFilter.evaluate()
                  └─ 其他 -> 保留
-            └─ 返回新 List
+            └─ 可选本地重排 -> 返回新 List
 ```
 
 ### 为什么不用 OkHttp JSON
@@ -105,13 +108,40 @@ protobuf 的 `SearchVideoCard` 只有 title / author / desc / play / duration / 
 
 ## 广告卡
 
-`Item.card_item` 的 oneof 里 `cm`（SearchAdCard）和 `purchase`（商品卡）直接删除；`goto == "ad"` 也删。其他类型（用户、直播、番剧、专栏）保留，避免破坏搜索页结构。
+`Item.card_item` 的 oneof 里 `cm`（SearchAdCard）和 `purchase`（商品卡）直接删除；`goto == "ad"` 也删。其他类型（用户、直播、番剧、专栏）默认保留，避免破坏搜索页结构。
+
+## 结果策略
+
+处理顺序：
+
+1. 总开关关闭 → 原样返回
+2. 搜索词命中白名单 → 原样返回
+3. 卡片类型：`CM` / `PURCHASE`、推荐词卡、提示卡
+4. 只保留视频模式下，所有非 `AV` 卡删除
+5. `AV` 卡：屏蔽词 → 屏蔽 UP → 最低播放量 → 标题去重 → 相关性打分
+6. 可选本地重排
+
+### 去重
+
+key = 归一化标题 + `|` + 归一化作者。只去完全相同的标题 + 作者，不做语义相似度，避免误杀同题材不同视频。
+
+### 重排
+
+只对 `AV` 槽位排序：相关性分数降序 → 播放量降序 → 原顺序兜底。非视频卡（用户/直播/番剧）停留在原位置，不会因为排序被挪走。
+
+### 统计
+
+- provider 每次记录「保留 / 总数 / 删除」。
+- 累计搜索次数和累计删除数存进模块 App 的 prefs。
+- 同一关键词 1.5 秒内只记一次，避免 UI 多次取 getter 导致重复统计。
 
 ## 设置与状态
 
 - 模块 App 的 `SettingsActivity` 写 `SharedPreferences`。
-- B 站进程通过导出的 `SettingsProvider` 读取开关、阈值、是否删广告卡，2 秒缓存。
-- Hook 安装后通过同一个 provider 回传「安装数 / 时间 / 进程 / 模块版本」，设置页可直接看到是否命中，不必只看 logcat。
+- B 站进程通过导出的 `SettingsProvider` 读取开关、阈值、屏蔽词、屏蔽 UP、白名单、最低播放量等，2 秒缓存。
+- Hook 安装后通过同一个 provider 回传「安装数 / 时间 / 进程 / 模块版本」。
+- 每次搜索回传「关键词 / 保留 / 总数 / 删除」，设置页显示累计和最近一次搜索。
+- 设置页使用 Material 3 + XML：MaterialToolbar、MaterialCardView、MaterialSwitch、Slider、MaterialButtonToggleGroup、TextInputLayout。
 
 ## 隐私
 

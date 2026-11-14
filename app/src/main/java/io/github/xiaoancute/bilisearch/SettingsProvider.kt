@@ -16,14 +16,22 @@ class SettingsProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        val context = context ?: return null
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val ctx = context ?: return null
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
         return when (method) {
             "get" -> Bundle().apply {
                 putBoolean(KEY_ENABLED, prefs.getBoolean(KEY_ENABLED, true))
                 putInt(KEY_THRESHOLD, prefs.getInt(KEY_THRESHOLD, 50))
                 putBoolean(KEY_DROP_ADS, prefs.getBoolean(KEY_DROP_ADS, true))
+                putBoolean(KEY_VIDEO_ONLY, prefs.getBoolean(KEY_VIDEO_ONLY, false))
+                putBoolean(KEY_HIDE_RECOMMEND, prefs.getBoolean(KEY_HIDE_RECOMMEND, false))
+                putBoolean(KEY_DEDUPE, prefs.getBoolean(KEY_DEDUPE, false))
+                putBoolean(KEY_RERANK, prefs.getBoolean(KEY_RERANK, false))
+                putInt(KEY_MIN_PLAY, prefs.getInt(KEY_MIN_PLAY, 0))
+                putString(KEY_BLOCK_WORDS, prefs.getString(KEY_BLOCK_WORDS, ""))
+                putString(KEY_BLOCK_UPS, prefs.getString(KEY_BLOCK_UPS, ""))
+                putString(KEY_WHITELIST, prefs.getString(KEY_WHITELIST, ""))
             }
 
             "status" -> {
@@ -37,12 +45,15 @@ class SettingsProvider : ContentProvider() {
             }
 
             "search" -> {
+                val removed = extras?.getInt("removed", 0) ?: 0
                 prefs.edit()
                     .putLong(KEY_STATUS_SEARCH_TIME, System.currentTimeMillis())
                     .putString(KEY_STATUS_SEARCH_KEYWORD, extras?.getString("keyword"))
                     .putInt(KEY_STATUS_SEARCH_KEPT, extras?.getInt("kept", 0) ?: 0)
                     .putInt(KEY_STATUS_SEARCH_TOTAL, extras?.getInt("total", 0) ?: 0)
-                    .putInt(KEY_STATUS_SEARCH_REMOVED, extras?.getInt("removed", 0) ?: 0)
+                    .putInt(KEY_STATUS_SEARCH_REMOVED, removed)
+                    .putInt(KEY_TOTAL_SEARCHES, prefs.getInt(KEY_TOTAL_SEARCHES, 0) + 1)
+                    .putInt(KEY_TOTAL_REMOVED, prefs.getInt(KEY_TOTAL_REMOVED, 0) + removed)
                     .apply()
                 Bundle().apply { putBoolean("ok", true) }
             }

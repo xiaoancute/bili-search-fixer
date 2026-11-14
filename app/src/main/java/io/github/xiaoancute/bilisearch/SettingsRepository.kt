@@ -45,7 +45,18 @@ internal class SettingsRepository(private val context: Context) {
         return cached
     }
 
-    private fun read(): Settings? = runCatching {
+    private fun read(): Settings? {
+        repeat(READ_ATTEMPTS) { attempt ->
+            val value = tryRead()
+            if (value != null) return value
+            if (attempt < READ_ATTEMPTS - 1) {
+                runCatching { Thread.sleep(READ_RETRY_DELAY_MS) }
+            }
+        }
+        return null
+    }
+
+    private fun tryRead(): Settings? = runCatching {
         val bundle = context.contentResolver.call(uri, "get", null, null)
             ?: return null
         Settings(
@@ -105,5 +116,7 @@ internal class SettingsRepository(private val context: Context) {
     private companion object {
         const val CACHE_MS = 2_000L
         const val SEARCH_REPORT_INTERVAL_MS = 1_500L
+        const val READ_ATTEMPTS = 3
+        const val READ_RETRY_DELAY_MS = 150L
     }
 }

@@ -27,78 +27,7 @@ internal class SearchResultHook(
         var installed = 0
         installed += hookGetter(ALL_RESPONSE, "getItemList")
         installed += hookGetter(TYPE_RESPONSE, "getItemsList")
-        hookExtraWords(ALL_RESPONSE)
         return installed
-    }
-
-    /**
-     * The "related searches" block below the result list is rendered from
-     * SearchAllResponse.extra_word_list / org_extra_word, not from Item.
-     * Clear both when the user asks to hide recommendation cards.
-     */
-    private fun hookExtraWords(className: String) {
-        val responseClass = runCatching {
-            Class.forName(className, false, classLoader)
-        }.getOrNull() ?: return
-
-        val installations = listOf("getExtraWordList", "getExtraWordListList")
-        installations.forEach { methodName ->
-            val method = responseClass.methods.firstOrNull {
-                it.name == methodName &&
-                    it.parameterCount == 0 &&
-                    List::class.java.isAssignableFrom(it.returnType)
-            } ?: return@forEach
-
-            xposed.hook(method)
-                .setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH)
-                .intercept { chain ->
-                    val result = chain.proceed()
-                    if (settings.current().hideRecommend) emptyList<String>() else result
-                }
-            xposed.log(Log.INFO, LOG_TAG, "hooked " + className + "." + methodName)
-        }
-
-        val orgExtraWord = responseClass.methods.firstOrNull {
-            it.name == "getOrgExtraWord" &&
-                it.parameterCount == 0 &&
-                it.returnType == String::class.java
-        } ?: return
-
-        xposed.hook(orgExtraWord)
-            .setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH)
-            .intercept { chain ->
-                val result = chain.proceed()
-                if (settings.current().hideRecommend) "" else result
-            }
-        xposed.log(Log.INFO, LOG_TAG, "hooked " + className + ".getOrgExtraWord")
-    }
-
-    private fun hookGetter(className: String, getterName: String): Int {
-        val responseClass = runCatching {
-            Class.forName(className, false, classLoader)
-        }.getOrNull() ?: run {
-            xposed.log(Log.WARN, LOG_TAG, "class not found: " + className)
-            return 0
-        }
-
-        val getter = responseClass.methods.firstOrNull {
-            it.name == getterName && it.parameterCount == 0
-        } ?: run {
-            xposed.log(Log.WARN, LOG_TAG, "getter not found: " + className + "." + getterName)
-            return 0
-        }
-
-        xposed.hook(getter)
-            .setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH)
-            .intercept { chain ->
-                val result = chain.proceed()
-                val items = result as? List<*> ?: return@intercept result
-                val response = chain.thisObject ?: return@intercept result
-                filter(response, items)
-            }
-
-        xposed.log(Log.INFO, LOG_TAG, "hooked " + className + "." + getterName)
-        return 1
     }
 
     private fun filter(response: Any, items: List<*>): List<*> {

@@ -139,6 +139,7 @@ key = 归一化标题 + `|` + 归一化作者。只去完全相同的标题 + �
 
 - 模块 App 的 `SettingsActivity` 写 `SharedPreferences`。
 - B 站进程通过导出的 `SettingsProvider` 读取开关、阈值、屏蔽词、屏蔽 UP、白名单、最低播放量等，2 秒缓存。
+- Hook 安装时异步 preload；读取失败重试 3 次（150ms 间隔），避免首次搜索读到默认值。
 - Hook 安装后通过同一个 provider 回传「安装数 / 时间 / 进程 / 模块版本」。
 - 每次搜索回传「关键词 / 保留 / 总数 / 删除」，设置页显示累计和最近一次搜索。
 - 设置页使用 Material 3 + XML：MaterialToolbar、MaterialCardView、MaterialSwitch、Slider、MaterialButtonToggleGroup、TextInputLayout。
@@ -155,3 +156,4 @@ key = 归一化标题 + `|` + 归一化作者。只去完全相同的标题 + �
 - B 站 9.0+（BBZQ 的适配基线）。
 - Modern API 102，最低 Android 9（API 28）。
 - 只加载 `tv.danmaku.bili` 主进程。
+- 底部「相关搜索」区块由独立 UI 渲染，当前不覆盖；`hideRecommend` 只处理 Item 列表里的推荐词/提示卡。

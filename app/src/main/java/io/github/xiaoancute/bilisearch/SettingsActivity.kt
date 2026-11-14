@@ -140,8 +140,14 @@ class SettingsActivity : AppCompatActivity() {
         val process = prefs.getString(KEY_STATUS_PROCESS, null)
         val version = prefs.getString(KEY_STATUS_VERSION, null)
 
+        val searchTime = prefs.getLong(KEY_STATUS_SEARCH_TIME, 0L)
+
         val hookText = if (time == 0L) {
-            "尚未收到 Hook 上报。确认模块已启用、作用域已勾选 B 站，并重启 B 站。"
+            if (searchTime > 0L) {
+                "Hook 已运行：最近一次搜索已上报，安装状态未回传。"
+            } else {
+                "尚未收到 Hook 上报。确认模块已启用、作用域已勾选 B 站，并重启 B 站。"
+            }
         } else {
             val whenText = DateFormat.format("yyyy-MM-dd HH:mm:ss", Date(time))
             "Hook 已上报：" + whenText +
@@ -151,7 +157,6 @@ class SettingsActivity : AppCompatActivity() {
 
         val totalSearches = prefs.getInt(KEY_TOTAL_SEARCHES, 0)
         val totalRemoved = prefs.getInt(KEY_TOTAL_REMOVED, 0)
-        val searchTime = prefs.getLong(KEY_STATUS_SEARCH_TIME, 0L)
         val searchKeyword = prefs.getString(KEY_STATUS_SEARCH_KEYWORD, null)
         val kept = prefs.getInt(KEY_STATUS_SEARCH_KEPT, 0)
         val total = prefs.getInt(KEY_STATUS_SEARCH_TOTAL, 0)

@@ -47,9 +47,19 @@ SearchAllResponse        SearchByTypeResponse
 | 本地重排（相关性 → 播放量） | ✅ |
 | Material 3 设置页 | ✅ XML + Material Components |
 | Hook 状态 + 累计/最近搜索统计 | ✅ |
-| 真机回归 | ⏳ 需要 Android 设备 |
+| 真机回归 | ✅ OnePlus / Android 16 / B站 9.16.1 |
 
-v0.5.0 把设置页换成了 Material 3，并补齐了屏蔽词、屏蔽 UP、最低播放量、去重、只保留视频、隐藏推荐卡和本地重排。过滤是否命中仍需真机确认；CI 只保证编译和单测。
+v0.5.3 已在真机验证：OnePlus PLF110 / Android 16 / B站 9.16.1，两个 Hook 都命中，过滤、规则、统计均正常。CI 继续负责编译和单测。
+
+## 真机验证
+
+2026-11-14 实测：
+
+- Modern API 安装 2 个 Hook：综合搜索 + 分类搜索
+- `bad apple`：20 条删 10-18 条，零关联标题被移除
+- `bad apple -Dongxi`：`Bad Dongxi!!` 命中 `excluded:dongxi`，其余 `title_missing:bad`，最终只剩 2 条精确匹配
+- 最低播放量、屏蔽词、只保留视频、去重、本地重排均生效
+- 首次冷启动设置竞态已用 preload + 重试修复
 
 ## 构建（只用 GitHub Actions）
 
@@ -57,12 +67,14 @@ v0.5.0 把设置页换成了 Material 3，并补齐了屏蔽词、屏蔽 UP、�
 
 1. 安装 JDK 21、Android SDK 37、Gradle 9.7.1
 2. 跑单测
-3. 产出 debug APK
-4. 上传 artifact
+3. 产出 debug + release APK
+4. 用固定 key 签名（更新可直接覆盖安装）
+5. 上传 artifact
 
 ```bash
 gh run list --workflow build.yml --limit 1
-gh run download --name BiliSearchFixer-debug
+gh run download --name BiliSearchFixer-release   # 日常安装
+gh run download --name BiliSearchFixer-debug     # 需要调试时
 ```
 
 ## 安装
@@ -142,6 +154,7 @@ search="原神攻略" kept=12/20 removed=8 ...
 - gRPC 搜索卡片没有 pubdate，暂时不能做本地时间排序。
 - 标题去重按「归一化标题 + 作者」判断，不做语义相似度。
 - 重排只在视频卡槽位内排序，不会把用户/直播卡挪走。
+- 底部「相关搜索」是独立区块，当前 hook 不覆盖；`隐藏推荐卡` 只处理结果列表里的推荐词/提示卡。
 - 搜索词仍会原样发给 B 站，`-排除词` 只能本地过滤，不能改变服务端召回。请求改写要处理签名，放在后面验证。
 - 适配 B 站 9.0+；更老的版本可能仍走 JSON，当前不覆盖。
 
@@ -152,7 +165,7 @@ search="原神攻略" kept=12/20 removed=8 ...
 - [x] M2 迁移 Modern API + gRPC 搜索 Hook
 - [x] M3 设置页 + Hook 状态回报
 - [x] M4 Material 3 界面 + 多项过滤 + 本地重排
-- [ ] M5 真机验证 + 字段名/时序修正
+- [x] M5 真机验证 + 冷启动设置竞态修复
 - [ ] M6 请求改写（先验证签名）
 
 ## 参考

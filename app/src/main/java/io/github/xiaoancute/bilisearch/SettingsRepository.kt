@@ -14,7 +14,7 @@ import java.util.concurrent.Executors
 internal class SettingsRepository(private val context: Context) {
 
     private val uri = Uri.parse("content://" + SETTINGS_AUTHORITY)
-    private val executor = Executors.newSingleThreadExecutor { runnable ->
+    private val reportExecutor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "BiliSearchStatus").apply { isDaemon = true }
     }
 
@@ -31,7 +31,7 @@ internal class SettingsRepository(private val context: Context) {
     private var lastSearchAt = 0L
 
     fun preload() {
-        executor.execute { current() }
+        Thread { current() }.apply { isDaemon = true }.start()
     }
 
     fun current(): Settings {
@@ -82,8 +82,8 @@ internal class SettingsRepository(private val context: Context) {
             .distinct()
 
     fun reportStatusAsync(installed: Int, process: String, version: String) {
-        executor.execute {
-            runCatching {
+        reportExecutor.execute {
+            retry {
                 val extras = Bundle().apply {
                     putInt("installed", installed)
                     putString("process", process)
@@ -100,8 +100,8 @@ internal class SettingsRepository(private val context: Context) {
         lastSearchKeyword = keyword
         lastSearchAt = now
 
-        executor.execute {
-            runCatching {
+        reportExecutor.execute {
+            retry {
                 val extras = Bundle().apply {
                     putString("keyword", keyword)
                     putInt("kept", kept)
@@ -109,6 +109,15 @@ internal class SettingsRepository(private val context: Context) {
                     putInt("removed", removed)
                 }
                 context.contentResolver.call(uri, "search", null, extras)
+            }
+        }
+    }
+
+    private fun retry(block: () -> Unit) {
+        repeat(READ_ATTEMPTS) { attempt ->
+            if (runCatching(block).isSuccess) return
+            if (attempt < READ_ATTEMPTS - 1) {
+                runCatching { Thread.sleep(READ_RETRY_DELAY_MS) }
             }
         }
     }

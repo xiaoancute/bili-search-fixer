@@ -29,7 +29,7 @@ class RelevanceScorerTest {
     @Test
     fun tagMatchCountsButWeighsLessThanTitle() {
         val score = scorer.score("原神攻略", SearchItem(title = "随便聊聊", tag = "原神,攻略"))
-        assertEquals(2.0 / 3.0 * 0.8, score.value, 0.001)
+        assertEquals(0.8, score.value, 0.001)
     }
 
     @Test

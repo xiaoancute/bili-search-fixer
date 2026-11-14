@@ -35,7 +35,7 @@ class BiliSearchModule : XposedModule() {
             log(Log.ERROR, LOG_TAG, "search hook installation failed", it)
         }.getOrDefault(0)
 
-        status.hook(installed, processName, moduleApplicationInfo.versionName ?: "unknown")
+        status.hook(installed, processName, MODULE_VERSION)
         log(Log.INFO, LOG_TAG, "search hooks installed: " + installed)
     }
 }

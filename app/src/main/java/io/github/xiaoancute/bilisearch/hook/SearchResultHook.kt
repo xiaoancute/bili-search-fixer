@@ -1,12 +1,9 @@
 package io.github.xiaoancute.bilisearch.hook
 
-import android.content.SharedPreferences
 import android.util.Log
 import io.github.libxposed.api.XposedInterface
-import io.github.xiaoancute.bilisearch.KEY_DROP_ADS
-import io.github.xiaoancute.bilisearch.KEY_ENABLED
-import io.github.xiaoancute.bilisearch.KEY_THRESHOLD
 import io.github.xiaoancute.bilisearch.LOG_TAG
+import io.github.xiaoancute.bilisearch.SettingsRepository
 import io.github.xiaoancute.bilisearch.filter.SearchFilter
 import io.github.xiaoancute.bilisearch.filter.SearchItem
 import io.github.xiaoancute.bilisearch.filter.SearchText
@@ -20,7 +17,7 @@ import io.github.xiaoancute.bilisearch.filter.SearchText
 internal class SearchResultHook(
     private val xposed: XposedInterface,
     private val classLoader: ClassLoader,
-    private val prefs: SharedPreferences
+    private val settings: SettingsRepository
 ) {
 
     fun install(): Int {
@@ -59,14 +56,14 @@ internal class SearchResultHook(
     }
 
     private fun filter(response: Any, items: List<*>): List<*> {
-        if (!prefs.getBoolean(KEY_ENABLED, true)) return items
+        val current = settings.current()
+        if (!current.enabled) return items
 
         val keyword = response.stringMethod("getKeyword")?.trim().orEmpty()
         if (keyword.isEmpty()) return items
 
-        val threshold = prefs.getInt(KEY_THRESHOLD, 50).coerceIn(0, 100) / 100.0
-        val dropAds = prefs.getBoolean(KEY_DROP_ADS, true)
-        val searchFilter = SearchFilter(threshold = threshold, dropAds = dropAds)
+        val threshold = current.threshold.coerceIn(0, 100) / 100.0
+        val searchFilter = SearchFilter(threshold = threshold, dropAds = current.dropAds)
         val rule = searchFilter.parse(keyword)
 
         val kept = ArrayList<Any>(items.size)

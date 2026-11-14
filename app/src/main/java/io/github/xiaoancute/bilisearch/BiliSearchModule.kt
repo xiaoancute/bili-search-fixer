@@ -2,8 +2,6 @@ package io.github.xiaoancute.bilisearch
 
 import android.app.Application
 import android.content.Context
-import android.content.SharedPreferences
-import android.os.Build
 import android.util.Log
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
@@ -15,7 +13,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 class BiliSearchModule : XposedModule() {
 
     private var processName: String = ""
-    private var prefs: SharedPreferences? = null
     private val started = AtomicBoolean(false)
 
     override fun onModuleLoaded(param: ModuleLoadedParam) {
@@ -26,27 +23,20 @@ class BiliSearchModule : XposedModule() {
         if (param.packageName != TARGET_PACKAGE) return
         if (processName.isNotEmpty() && processName != TARGET_PACKAGE) return
 
-        prefs = getRemotePreferences(PREFS_NAME)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startOnce(param.defaultClassLoader)
+        installApplicationHook()
+        currentApplication()?.let { application ->
+            startOnce(application, application.classLoader)
         }
-        installApplicationHook(param)
     }
 
-    private fun installApplicationHook(param: PackageLoadedParam) {
-        val fallbackClassLoader = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            runCatching { param.defaultClassLoader }.getOrNull()
-        } else {
-            null
-        }
-
+    private fun installApplicationHook() {
         val hooker = object : XposedInterface.Hooker {
             override fun intercept(chain: XposedInterface.Chain): Any? {
                 val result = chain.proceed()
                 val application = chain.thisObject as? Application
-                val classLoader = application?.classLoader ?: fallbackClassLoader
-                if (classLoader != null) startOnce(classLoader)
+                if (application != null) {
+                    startOnce(application, application.classLoader)
+                }
                 return result
             }
         }
@@ -69,17 +59,32 @@ class BiliSearchModule : XposedModule() {
         log(Log.WARN, LOG_TAG, "Application.attach hook not installed")
     }
 
-    private fun startOnce(classLoader: ClassLoader) {
+    private fun startOnce(application: Application, classLoader: ClassLoader) {
         if (!started.compareAndSet(false, true)) return
 
-        val preferences = prefs ?: getRemotePreferences(PREFS_NAME).also { prefs = it }
+        val settings = SettingsRepository(application)
         val installed = runCatching {
-            SearchResultHook(this, classLoader, preferences).install()
+            SearchResultHook(this, classLoader, settings).install()
         }.onFailure {
             log(Log.ERROR, LOG_TAG, "search hook installation failed", it)
         }.getOrDefault(0)
 
         log(Log.INFO, LOG_TAG, "search hooks installed: " + installed)
+        Thread {
+            settings.reportStatus(installed, processName, moduleVersion(application))
+        }.apply { isDaemon = true }.start()
+
         if (installed == 0) started.set(false)
     }
+
+    private fun moduleVersion(context: Context): String = runCatching {
+        context.packageManager.getPackageInfo(MODULE_PACKAGE, 0).versionName
+    }.getOrNull() ?: "unknown"
+
+    private fun currentApplication(): Application? = runCatching {
+        Class.forName("android.app.ActivityThread")
+            .getDeclaredMethod("currentApplication")
+            .apply { isAccessible = true }
+            .invoke(null) as? Application
+    }.getOrNull()
 }

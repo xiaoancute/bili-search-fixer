@@ -42,10 +42,11 @@ SearchAllResponse        SearchByTypeResponse
 | `SearchByTypeResponse.getItemsList` Hook | ✅ 代码完成，待真机验证 |
 | 广告卡/买量卡删除 | ✅ |
 | 标题 bigram 相关性 + `- # @` 规则 | ✅ 有单测 |
-| 设置页 | ⏳ |
+| 设置页（开关/阈值/规则说明） | ✅ |
+| Hook 状态回报 | ✅ 设置页可看安装数/时间/进程 |
 | 真机回归 | ⏳ 需要 Android 设备 |
 
-v0.3.0 已把架构从 OkHttp JSON 迁到 gRPC protobuf，但还没有在真机上跑过；CI 只保证编译和单测。
+v0.4.0 是第一个「能打开、能改设置、能看到 Hook 是否上报」的测试版。架构已从 OkHttp JSON 迁到 gRPC protobuf，但过滤是否命中仍需真机确认；CI 只保证编译和单测。
 
 ## 构建（只用 GitHub Actions）
 
@@ -64,10 +65,13 @@ gh run download --name BiliSearchFixer-debug
 ## 安装
 
 1. 手机安装支持 Modern API 102 的 LSPosed（或 NPatch）。
-2. 安装 APK，在框架里启用模块。
-3. 作用域勾选「哔哩哔哩」(`tv.danmaku.bili`)。
-4. 强制停止并重启 B 站。
-5. 看日志：
+2. 安装 APK，桌面会出现「BiliSearch Fixer」，打开后可开关过滤、调阈值。
+3. 在框架里启用模块。
+4. 作用域勾选「哔哩哔哩」(`tv.danmaku.bili`)。
+5. 强制停止并重启 B 站，搜索一次。
+6. 回到模块设置页点「刷新 Hook 状态」，应显示「安装 2 个 Hook」。
+
+也可以看日志：
 
 ```bash
 adb logcat | grep BiliSearchFixer
@@ -111,8 +115,8 @@ search="原神攻略" kept=12/20 removed=8 ...
 - [x] M1 工程骨架 + CI
 - [x] M1.5 规则语法 `-排除 #标签 @UP`
 - [x] M2 迁移 Modern API + gRPC 搜索 Hook
-- [ ] M3 真机验证 + 字段名/时序修正
-- [ ] M4 设置页（开关、阈值、规则）
+- [x] M3 设置页 + Hook 状态回报
+- [ ] M4 真机验证 + 字段名/时序修正
 - [ ] M5 本地重排（相关性 + 播放量）
 - [ ] M6 请求改写（先验证签名）
 

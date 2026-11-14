@@ -46,7 +46,7 @@ B 站 9.0+ 的 App 搜索走 Moss gRPC，JSON 接口是网页/旧版本的路径
 | `Application.attach / attachBaseContext` | 拿真实 ClassLoader | B 站有 Tribe 插件化 |
 | `SearchAllResponse.getItemList` | 综合搜索 | 返回过滤后的 List |
 | `SearchByTypeResponse.getItemsList` | 分类搜索 | 视频/用户/直播 Tab |
-| Modern API `getRemotePreferences` | 开关/阈值 | 默认开启，0.5 阈值 |
+| `SettingsProvider` (ContentProvider) | 开关/阈值/状态回报 | 模块 App 写，B 站进程读；2s 缓存 |
 
 ## 相关性算法
 
@@ -107,10 +107,17 @@ protobuf 的 `SearchVideoCard` 只有 title / author / desc / play / duration / 
 
 `Item.card_item` 的 oneof 里 `cm`（SearchAdCard）和 `purchase`（商品卡）直接删除；`goto == "ad"` 也删。其他类型（用户、直播、番剧、专栏）保留，避免破坏搜索页结构。
 
+## 设置与状态
+
+- 模块 App 的 `SettingsActivity` 写 `SharedPreferences`。
+- B 站进程通过导出的 `SettingsProvider` 读取开关、阈值、是否删广告卡，2 秒缓存。
+- Hook 安装后通过同一个 provider 回传「安装数 / 时间 / 进程 / 模块版本」，设置页可直接看到是否命中，不必只看 logcat。
+
 ## 隐私
 
 - 不上传任何数据。
 - 不读取账号 Cookie。
+- 状态回报只写入本机模块 App 的 SharedPreferences。
 - 日志只在本机 logcat，包含搜索词和被删标题（用于调试）。
 
 ## 版本适配

@@ -4,8 +4,6 @@
 
 ![build](https://github.com/xiaoancute/bili-search-fixer/actions/workflows/build.yml/badge.svg)
 
-当前版本：**1.0.0**
-
 ## 功能
 
 | 能力 | 说明 |

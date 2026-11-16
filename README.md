@@ -61,8 +61,6 @@ adb logcat | grep BiliSearchFixer
 
 ## 构建与下载
 
-构建、单测和 APK 全部在 GitHub Actions 完成，不在本地编译。
-
 ```bash
 gh run list --workflow build.yml --limit 1
 gh run download --name BiliSearchFixer-release   # 日常安装

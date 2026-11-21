@@ -10,6 +10,9 @@ import android.util.Log
  */
 internal class SettingsStore(private val prefs: SharedPreferences?) {
 
+    /** The host must fail open when the framework's settings cannot be read. */
+    fun readOrNull(): Settings? = if (prefs == null) null else runCatching { read() }.getOrNull()
+
     fun read(): Settings {
         val p = prefs ?: return Settings()
         return Settings(

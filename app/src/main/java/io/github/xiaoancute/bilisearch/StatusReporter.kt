@@ -3,6 +3,7 @@ package io.github.xiaoancute.bilisearch
 import android.app.Application
 import android.content.Intent
 import android.os.Bundle
+import io.github.xiaoancute.bilisearch.filter.SearchDiagnostics
 
 internal class StatusReporter {
 
@@ -15,13 +16,17 @@ internal class StatusReporter {
         }
     }
 
-    fun search(keyword: String, kept: Int, total: Int, removed: Int) {
+    fun search(keyword: String, kept: Int, total: Int, diagnostics: SearchDiagnostics) {
         send {
             putString("type", "search")
             putString("keyword", keyword)
             putInt("kept", kept)
             putInt("total", total)
-            putInt("removed", removed)
+            putInt("removed", diagnostics.totalRemoved)
+            putStringArray(SearchStatusExtras.REASON_CODES, diagnostics.counts.keys.map { it.code }.toTypedArray())
+            putIntArray(SearchStatusExtras.REASON_COUNTS, diagnostics.counts.values.toIntArray())
+            putStringArray(SearchStatusExtras.SAMPLE_TITLES, diagnostics.samples.map { it.title }.toTypedArray())
+            putStringArray(SearchStatusExtras.SAMPLE_REASONS, diagnostics.samples.map { it.reason }.toTypedArray())
         }
     }
 

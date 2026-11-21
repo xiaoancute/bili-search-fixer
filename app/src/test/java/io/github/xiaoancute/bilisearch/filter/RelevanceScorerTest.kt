@@ -49,4 +49,32 @@ class RelevanceScorerTest {
         val score = scorer.score("bad apple", SearchItem(title = "Bad Dongxi!! feat.帽子工厂"))
         assertEquals(0.3, score.value, 0.001)
     }
+
+    @Test
+    fun highlightNeedsActualQueryCoverage() {
+        val score = scorer.score("原神攻略", SearchItem(title = "英雄联盟精彩集锦", highlightCount = 2))
+        assertEquals(0.0, score.value, 0.001)
+    }
+
+    @Test
+    fun exactMatchStaysFullEvenWhenHighlighted() {
+        val score = scorer.score("bad apple", SearchItem(title = "Bad Apple!!", highlightCount = 2))
+        assertEquals(1.0, score.value, 0.001)
+        assertEquals("title_exact", score.reason)
+    }
+
+    @Test
+    fun partialHighlightsGetABoundedCoverageBonus() {
+        val once = scorer.score("bad apple", SearchItem(title = "Bad Dongxi!!", highlightCount = 2))
+        val repeated = scorer.score("bad apple", SearchItem(title = "Bad Dongxi!!", highlightCount = 20))
+        assertEquals(0.35, once.value, 0.001)
+        assertEquals(once, repeated)
+    }
+
+    @Test
+    fun descriptionOnlyMatchCannotReachStandardStrength() {
+        val score = scorer.score("原神攻略", SearchItem(title = "随便聊聊", description = "原神攻略"))
+        assertEquals(0.45, score.value, 0.001)
+        assertEquals("description_partial", score.reason)
+    }
 }

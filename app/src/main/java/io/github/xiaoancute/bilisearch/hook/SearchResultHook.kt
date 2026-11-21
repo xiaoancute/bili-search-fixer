@@ -5,6 +5,8 @@ import io.github.libxposed.api.XposedInterface
 import io.github.xiaoancute.bilisearch.LOG_TAG
 import io.github.xiaoancute.bilisearch.SettingsStore
 import io.github.xiaoancute.bilisearch.StatusReporter
+import io.github.xiaoancute.bilisearch.filter.RemovalTracker
+import io.github.xiaoancute.bilisearch.filter.SearchDiagnostics
 import io.github.xiaoancute.bilisearch.filter.SearchFilter
 import io.github.xiaoancute.bilisearch.filter.SearchItem
 import io.github.xiaoancute.bilisearch.filter.SearchResultPolicy
@@ -48,12 +50,14 @@ internal class SearchResultHook(
         }
 
         xposed.hook(getter)
-            .setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH)
+            .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
             .intercept { chain ->
                 val result = chain.proceed()
                 val items = result as? List<*> ?: return@intercept result
                 val response = chain.thisObject ?: return@intercept result
-                filter(response, items)
+                runCatching { filter(response, items) }.onFailure {
+                    xposed.log(Log.WARN, LOG_TAG, "search filtering failed; keeping original results", it)
+                }.getOrDefault(items)
             }
 
         xposed.log(Log.INFO, LOG_TAG, "hooked " + className + "." + getterName)
@@ -61,7 +65,7 @@ internal class SearchResultHook(
     }
 
     private fun filter(response: Any, items: List<*>): List<*> {
-        val current = settings.read()
+        val current = settings.readOrNull() ?: return items
         if (!current.enabled) return items
 
         val keyword = response.stringMethod("getKeyword")?.trim().orEmpty()
@@ -74,25 +78,25 @@ internal class SearchResultHook(
         val seen = HashSet<String>()
 
         val slots = ArrayList<Slot>(items.size)
-        val removed = ArrayList<String>(MAX_LOGGED_TITLES)
-        var removedCount = 0
+        val removals = RemovalTracker()
+        val removedLog = ArrayList<String>(SearchDiagnostics.MAX_SAMPLES)
 
         for (raw in items) {
             val item = raw ?: continue
             val case = item.method("getCardItemCase")?.toString()?.uppercase()
 
             if (current.dropAds && (case == "CM" || case == "PURCHASE")) {
-                removedCount++
+                removals.record("ad")
                 continue
             }
 
             if (current.hideRecommend && case != null && case in RECOMMEND_CASES) {
-                removedCount++
+                removals.record("recommendation")
                 continue
             }
 
             if (current.videoOnly && case != "AV") {
-                removedCount++
+                removals.record("non_video")
                 continue
             }
 
@@ -103,7 +107,7 @@ internal class SearchResultHook(
 
             val goto = item.stringMethod("getGoto")?.lowercase()
             if (current.dropAds && (goto == "ad" || goto == "ad_av")) {
-                removedCount++
+                removals.record("ad")
                 continue
             }
 
@@ -128,9 +132,9 @@ internal class SearchResultHook(
 
             val policyReason = policy.dropReason(searchItem, current, seen)
             if (policyReason != null) {
-                removedCount++
-                if (removed.size < MAX_LOGGED_TITLES) {
-                    removed += searchItem.title + " [" + policyReason + "]"
+                removals.record(policyReason, searchItem.title)
+                if (removedLog.size < SearchDiagnostics.MAX_SAMPLES) {
+                    removedLog += searchItem.title + " [" + policyReason + "]"
                 }
                 continue
             }
@@ -139,15 +143,17 @@ internal class SearchResultHook(
             if (decision.keep) {
                 slots += Slot(item, true, decision.score, searchItem.play ?: 0L)
             } else {
-                removedCount++
-                if (removed.size < MAX_LOGGED_TITLES) {
-                    val scoreText = "%.2f".format(decision.score)
-                    removed += searchItem.title + " [" + decision.reason + " " + scoreText + "]"
+                removals.record(decision.reason, searchItem.title)
+                if (removedLog.size < SearchDiagnostics.MAX_SAMPLES) {
+                    removedLog += searchItem.title + " [" + decision.reason + " " +
+                        "%.2f".format(decision.score) + "]"
                 }
             }
         }
 
-        status.search(keyword, slots.size, items.size, removedCount)
+        val diagnostics = removals.snapshot()
+        val removedCount = diagnostics.totalRemoved
+        status.search(keyword, slots.size, items.size, diagnostics)
 
         if (removedCount == 0 && !current.rerank) return items
 
@@ -172,7 +178,7 @@ internal class SearchResultHook(
                 Log.INFO,
                 LOG_TAG,
                 "search=\"" + keyword + "\" kept=" + slots.size + "/" + items.size +
-                    " removed=" + removedCount + " " + removed.joinToString(" | ")
+                    " removed=" + removedCount + " " + removedLog.joinToString(" | ")
             )
         }
 
@@ -197,7 +203,6 @@ internal class SearchResultHook(
     private companion object {
         const val ALL_RESPONSE = "com.bapis.bilibili.polymer.app.search.v1.SearchAllResponse"
         const val TYPE_RESPONSE = "com.bapis.bilibili.polymer.app.search.v1.SearchByTypeResponse"
-        const val MAX_LOGGED_TITLES = 5
 
         val RECOMMEND_CASES = setOf(
             "RECOMMEND_WORD",

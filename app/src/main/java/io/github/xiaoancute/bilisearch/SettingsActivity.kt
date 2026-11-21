@@ -21,6 +21,7 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import java.util.Date
+import io.github.xiaoancute.bilisearch.filter.SearchDiagnostics
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -34,6 +35,8 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var statusContent: View
     private lateinit var statusText: TextView
     private lateinit var statsText: TextView
+    private lateinit var removalSummaryText: TextView
+    private lateinit var removalSamplesText: TextView
     private lateinit var strengthHelp: TextView
     private lateinit var presetGroup: MaterialButtonToggleGroup
     private var remoteAvailable = false
@@ -69,6 +72,8 @@ class SettingsActivity : AppCompatActivity() {
 
         statusText = findViewById(R.id.statusText)
         statsText = findViewById(R.id.statsText)
+        removalSummaryText = findViewById(R.id.removalSummaryText)
+        removalSamplesText = findViewById(R.id.removalSamplesText)
         strengthHelp = findViewById(R.id.strengthHelp)
         presetGroup = findViewById(R.id.presetGroup)
 
@@ -225,9 +230,9 @@ class SettingsActivity : AppCompatActivity() {
     private fun bindStrength(strength: FilterStrength) {
         presetGroup.check(presetIdFor(strength))
         strengthHelp.text = when (strength) {
-            FilterStrength.LOOSE -> "宽松：只删标题完全不像的卡，可能保留一些边缘内容。"
-            FilterStrength.STANDARD -> "标准（推荐）：标题要覆盖大部分关键词；只在简介里蹭词的会删。"
-            FilterStrength.STRICT -> "严格：只留标题高度匹配的结果，适合精确找教程；容易删多。"
+            FilterStrength.LOOSE -> "宽松：保留部分关键词匹配，也允许主要在简介中匹配；可能留下边缘内容。"
+            FilterStrength.STANDARD -> "标准（推荐）：标题需覆盖较多关键词；仅简介匹配的结果会删。"
+            FilterStrength.STRICT -> "严格：标题需覆盖更多关键词；高亮只作加分，适合精确查找，容易删多。"
         }
     }
 
@@ -330,13 +335,31 @@ class SettingsActivity : AppCompatActivity() {
             "还没有搜索记录。"
         } else {
             val whenText = DateFormat.format("MM-dd HH:mm", Date(status.searchTime))
-            "最近：" + status.keyword + " · 保留 " + status.kept + "/" + status.total +
+            "最近一批：" + status.keyword + " · 保留 " + status.kept + "/" + status.total +
                 " · 删除 " + status.removed + "（" + whenText + "）"
         }
 
         statusText.text = title + "\n" + detail
-        statsText.text = "累计：搜索 " + status.totalSearches + " 次，删除 " +
+        statsText.text = "累计：处理 " + status.totalSearches + " 批结果，删除 " +
             status.totalRemoved + " 条\n" + recentText
+
+        val diagnostics = status.diagnostics
+        removalSummaryText.text = when {
+            !status.hasSearch -> "搜索一次后，这里会展示最近一批结果的删除原因。"
+            diagnostics == null -> "这条记录暂无删除原因；再次搜索后更新。"
+            status.removed == 0 -> "这批结果没有删除。"
+            else -> SearchDiagnosticsText.summary(diagnostics)
+        }
+        removalSamplesText.text = when {
+            !status.hasSearch || diagnostics == null || status.removed == 0 -> ""
+            diagnostics.samples.isEmpty() -> "本次删除的卡片没有可展示的视频标题。"
+            else -> SearchDiagnosticsText.samples(diagnostics)
+        }
+        removalSamplesText.visibility = if (removalSamplesText.text.isEmpty()) View.GONE else View.VISIBLE
+        findViewById<TextView>(R.id.removalSamplesHelp).apply {
+            text = "最多展示 ${SearchDiagnostics.MAX_SAMPLES} 条被删视频，方便判断是否需要调低强度或修改规则。"
+            visibility = if (diagnostics?.samples?.isNotEmpty() == true) View.VISIBLE else View.GONE
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

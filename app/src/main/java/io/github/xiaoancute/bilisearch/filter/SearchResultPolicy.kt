@@ -9,37 +9,53 @@ import io.github.xiaoancute.bilisearch.Settings
 internal class SearchResultPolicy {
 
     fun isWhitelisted(keyword: String, settings: Settings): Boolean {
+        return whitelistMatch(keyword, settings) != null
+    }
+
+    fun whitelistMatch(keyword: String, settings: Settings): String? {
         val normalized = QueryTokenizer.normalize(keyword)
-        return settings.whitelist.any {
-            it.isNotBlank() && normalized.contains(QueryTokenizer.normalize(it))
+        return settings.whitelist.firstOrNull { entry ->
+            val token = QueryTokenizer.normalize(entry)
+            token.isNotEmpty() && normalized.contains(token)
+        }
+    }
+
+    fun blockedWordMatch(title: String, settings: Settings): String? {
+        val normalizedTitle = QueryTokenizer.normalize(title)
+        return settings.blockWords.firstOrNull { entry ->
+            val token = QueryTokenizer.normalize(entry)
+            token.isNotEmpty() && normalizedTitle.contains(token)
+        }
+    }
+
+    fun blockedUploaderMatch(uploader: String?, mid: Long?, settings: Settings): String? {
+        val normalizedAuthor = QueryTokenizer.normalize(uploader.orEmpty())
+        return settings.blockUps.firstOrNull { entry ->
+            val value = QueryTokenizer.normalize(entry)
+            val isMid = QueryTokenizer.isDecimalIdentifier(entry)
+            when {
+                value.isEmpty() -> false
+                isMid -> mid?.let {
+                    QueryTokenizer.normalizeDecimalIdentifier(it.toString()) ==
+                        QueryTokenizer.normalizeDecimalIdentifier(value)
+                } == true
+                else -> normalizedAuthor.contains(value)
+            }
         }
     }
 
     fun dropReason(item: SearchItem, settings: Settings, seen: MutableSet<String>): String? {
-        val title = QueryTokenizer.normalize(item.title)
-        val author = QueryTokenizer.normalize(item.author.orEmpty())
+        blockedWordMatch(item.title, settings)?.let { return "blocked_word:" + it }
 
-        settings.blockWords.firstOrNull {
-            it.isNotBlank() && title.contains(QueryTokenizer.normalize(it))
-        }?.let { return "blocked_word:" + it }
-
-        settings.blockUps.firstOrNull { entry ->
-            val value = entry.trim()
-            if (value.isEmpty()) {
-                false
-            } else if (value.all { it.isDigit() }) {
-                item.mid?.toString() == value
-            } else {
-                author.contains(QueryTokenizer.normalize(value))
-            }
-        }?.let { return "blocked_up:" + it }
+        blockedUploaderMatch(item.author, item.mid, settings)?.let { return "blocked_up:" + it }
 
         if (settings.minPlay > 0 && (item.play ?: 0L) < settings.minPlay.toLong()) {
             return "min_play"
         }
 
         if (settings.dedupe) {
-            val key = title + "|" + author
+            val key = QueryTokenizer.normalize(item.title) + "|" +
+                QueryTokenizer.normalize(item.author.orEmpty())
             if (!seen.add(key)) return "duplicate"
         }
 

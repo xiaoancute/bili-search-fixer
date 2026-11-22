@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.Bundle
 import android.text.format.DateFormat
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
@@ -22,6 +24,7 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import java.util.Date
 import io.github.xiaoancute.bilisearch.filter.SearchDiagnostics
+import io.github.xiaoancute.bilisearch.filter.SearchRulePreview
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -44,8 +47,18 @@ class SettingsActivity : AppCompatActivity() {
     private var selectedTab = R.id.tabFilter
 
     private val serviceListener = BiliSearchApplication.ServiceStateListener { service ->
-        if (service != null && !remoteAvailable) {
-            runOnUiThread { if (!isFinishing) recreate() }
+        runOnUiThread {
+            if (!isFinishing) {
+                if (service == null) {
+                    remoteAvailable = false
+                    findViewById<TextView>(R.id.syncWarning)?.visibility = View.VISIBLE
+                    if (::settingsStore.isInitialized) setControlsEnabled(false)
+                    if (::statusStore.isInitialized) refreshStatus()
+                    updateRulePreview()
+                } else if (!remoteAvailable) {
+                    recreate()
+                }
+            }
         }
     }
 
@@ -190,7 +203,10 @@ class SettingsActivity : AppCompatActivity() {
             R.id.minPlayInput,
             R.id.blockWordsInput,
             R.id.blockUpsInput,
-            R.id.whitelistInput
+            R.id.whitelistInput,
+            R.id.rulePreviewKeywordInput,
+            R.id.rulePreviewTitleInput,
+            R.id.rulePreviewUploaderInput
         ).forEach { findViewById<View>(it).isEnabled = enabled }
 
         intArrayOf(R.id.presetLoose, R.id.presetStandard, R.id.presetStrict)
@@ -252,6 +268,20 @@ class SettingsActivity : AppCompatActivity() {
                 if (!hasFocus) saveRules(showError = true)
             }
         }
+
+        val previewInputs = listOf(
+            findViewById<TextInputEditText>(R.id.rulePreviewKeywordInput),
+            findViewById<TextInputEditText>(R.id.rulePreviewTitleInput),
+            findViewById<TextInputEditText>(R.id.rulePreviewUploaderInput)
+        )
+        previewInputs.forEach { input ->
+            input.addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = updateRulePreview()
+                override fun afterTextChanged(s: Editable?) = Unit
+            })
+        }
+        updateRulePreview()
     }
 
     private fun saveRules(showError: Boolean) {
@@ -286,6 +316,7 @@ class SettingsActivity : AppCompatActivity() {
             )
         )
         updateSettings { next }
+        updateRulePreview()
     }
 
     private fun bindSwitch(
@@ -304,6 +335,70 @@ class SettingsActivity : AppCompatActivity() {
         if (!remoteAvailable) return
         settings = transform(settings)
         settingsStore.write(settings)
+    }
+
+    private fun updateRulePreview() {
+        if (!::settings.isInitialized) return
+
+        val keyword = findViewById<TextInputEditText>(R.id.rulePreviewKeywordInput).text?.toString().orEmpty()
+        val title = findViewById<TextInputEditText>(R.id.rulePreviewTitleInput).text?.toString().orEmpty()
+        val uploader = findViewById<TextInputEditText>(R.id.rulePreviewUploaderInput).text?.toString().orEmpty()
+        val preview = SearchRulePreview.evaluate(keyword, title, uploader, settings)
+        val lines = ArrayList<String>()
+
+        if (!remoteAvailable) {
+            lines += "LSPosed 设置未连接，无法读取当前已保存规则。连接后可试算。"
+        } else {
+            if (keyword.isBlank()) {
+                lines += "填写搜索词，可试算白名单和屏蔽词与查询的冲突。"
+            } else if (preview.whitelistMatch != null) {
+                lines += "白名单命中「${preview.whitelistMatch}」：这次搜索会跳过所有本地过滤。"
+            } else {
+                lines += "白名单：未命中。"
+            }
+
+            if (title.isBlank()) {
+                lines += "填写视频标题，可试算屏蔽词。"
+            } else if (preview.whitelistMatch != null) {
+                lines += "白名单生效，屏蔽词不会删除这次搜索的结果。"
+            } else if (preview.blockedWordMatch != null) {
+                lines += "屏蔽词命中标题「${preview.blockedWordMatch}」：视频会被删除。"
+            } else {
+                lines += "屏蔽词：标题未命中。"
+            }
+
+            if (uploader.isBlank()) {
+                lines += "填写 UP 主名称或 mid，可试算屏蔽 UP。"
+            } else if (preview.whitelistMatch != null) {
+                lines += "白名单生效，屏蔽 UP 不会删除这次搜索的结果。"
+            } else if (preview.blockedUploaderMatch != null) {
+                lines += "屏蔽 UP 命中「${preview.blockedUploaderMatch}」：视频会被删除。"
+            } else {
+                lines += "屏蔽 UP：未命中。"
+            }
+
+            if (preview.whitelistMatch == null && preview.queryConflicts.isNotEmpty()) {
+                lines += "注意：搜索词包含屏蔽词「${preview.queryConflicts.joinToString("、")}」；标题包含这些词的视频会被删除。"
+            }
+
+            if (keyword.isNotBlank() && title.isNotBlank() && uploader.isNotBlank() &&
+                preview.whitelistMatch == null && preview.blockedWordMatch == null && preview.blockedUploaderMatch == null
+            ) {
+                lines += "此示例未命中白名单、屏蔽词或屏蔽 UP。"
+            }
+        }
+
+        if (remoteAvailable && preview.invalidBlockWords.isNotEmpty()) {
+            lines += "无效屏蔽词（只有标点或空白）：${preview.invalidBlockWords.joinToString("、")}；不会匹配结果。"
+        }
+        if (remoteAvailable && preview.invalidBlockUps.isNotEmpty()) {
+            lines += "无效屏蔽 UP（只有标点或空白）：${preview.invalidBlockUps.joinToString("、")}；不会匹配结果。"
+        }
+        if (remoteAvailable && preview.invalidWhitelist.isNotEmpty()) {
+            lines += "无效白名单（只有标点或空白）：${preview.invalidWhitelist.joinToString("、")}；不会跳过过滤。"
+        }
+
+        findViewById<TextView>(R.id.rulePreviewResult).text = lines.joinToString("\n")
     }
 
     private fun presetIdFor(strength: FilterStrength): Int = when (strength) {

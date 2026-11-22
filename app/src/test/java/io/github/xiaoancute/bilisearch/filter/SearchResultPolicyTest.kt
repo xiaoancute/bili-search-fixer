@@ -59,10 +59,89 @@ class SearchResultPolicyTest {
     }
 
     @Test
+    fun dedupeUsesTheDocumentedNormalizedTitleAndAuthorKey() {
+        val seen = mutableSetOf<String>()
+        val settings = Settings(dedupe = true)
+
+        assertNull(
+            policy.dropReason(
+                SearchItem(title = "原神 攻略", author = "同一个 UP"),
+                settings,
+                seen
+            )
+        )
+        assertEquals(
+            "duplicate",
+            policy.dropReason(
+                SearchItem(title = "原神攻略", author = "同一个UP"),
+                settings,
+                seen
+            )
+        )
+    }
+
+    @Test
     fun whitelistSkipsFiltering() {
         val settings = Settings(whitelist = listOf("教程"))
         assertTrue(policy.isWhitelisted("原神 教程", settings))
         assertFalse(policy.isWhitelisted("原神 攻略", settings))
+    }
+
+    @Test
+    fun punctuationOnlyBlockWordsDoNotMatchEveryTitle() {
+        val reason = policy.dropReason(
+            SearchItem(title = "肉丝面做法"),
+            Settings(blockWords = listOf("!!!", "  ")),
+            mutableSetOf()
+        )
+        assertNull(reason)
+    }
+
+    @Test
+    fun punctuationOnlyWhitelistDoesNotBypassFiltering() {
+        assertFalse(policy.isWhitelisted("任何搜索词", Settings(whitelist = listOf("!!!", "   "))))
+    }
+
+    @Test
+    fun normalizedBlockWordStillMatchesWithoutAQueryConflictException() {
+        val reason = policy.dropReason(
+            SearchItem(title = "榨菜肉丝面家常做法"),
+            Settings(blockWords = listOf("肉丝")),
+            mutableSetOf()
+        )
+        assertEquals("blocked_word:肉丝", reason)
+    }
+
+    @Test
+    fun normalizedUploaderNameAndMidUseSameRulesAsPreview() {
+        assertEquals(
+            "blocked_up:影视 飓风",
+            policy.dropReason(
+                SearchItem(title = "视频", author = "影视飓风官方频道"),
+                Settings(blockUps = listOf("影视 飓风")),
+                mutableSetOf()
+            )
+        )
+        assertEquals(
+            "blocked_up:00123",
+            policy.dropReason(
+                SearchItem(title = "视频", mid = 123L),
+                Settings(blockUps = listOf("00123")),
+                mutableSetOf()
+            )
+        )
+    }
+
+    @Test
+    fun fullWidthMidUsesTheSameNumericRule() {
+        assertEquals(
+            "blocked_up:１２３",
+            policy.dropReason(
+                SearchItem(title = "视频", mid = 123L),
+                Settings(blockUps = listOf("１２３")),
+                mutableSetOf()
+            )
+        )
     }
 
     @Test

@@ -19,6 +19,16 @@ object QueryTokenizer {
             .lowercase()
             .replace(NOISE, "")
 
+    fun isDecimalIdentifier(raw: String): Boolean {
+        val normalized = Normalizer.normalize(raw.trim(), Normalizer.Form.NFKC)
+        return normalized.isNotEmpty() && normalized.all { it in '0'..'9' }
+    }
+
+    fun normalizeDecimalIdentifier(raw: String): String =
+        Normalizer.normalize(raw.trim(), Normalizer.Form.NFKC)
+            .trimStart('0')
+            .ifEmpty { "0" }
+
     fun tokens(raw: String): List<String> {
         val normalized = Normalizer.normalize(raw, Normalizer.Form.NFKC).lowercase()
         val result = LinkedHashSet<String>()
